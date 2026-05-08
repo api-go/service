@@ -77,10 +77,10 @@ func MakeDocument() []Api {
 			AuthLevel: a.authLevel,
 			Memo:      a.memo,
 		}
-		if a.openFuncType != nil && a.openFuncType.NumIn() > 0 {
+		if a.handlerType != nil && a.handlerType.NumIn() > 0 {
 			// Find struct in
-			for i := 0; i < a.openFuncType.NumIn(); i++ {
-				t := a.openFuncType.In(i)
+			for i := 0; i < a.handlerType.NumIn(); i++ {
+				t := a.handlerType.In(i)
 				if t.Kind() == reflect.Struct {
 					api.In = getType(t)
 					break
@@ -88,22 +88,6 @@ func MakeDocument() []Api {
 			}
 		}
 		out = append(out, api)
-
-		for name, act := range a.actions {
-			actionApi := Api{
-				Type:      "Action",
-				Path:      name,
-				AuthLevel: act.authLevel,
-				Memo:      act.memo,
-			}
-			if act.inType != nil {
-				actionApi.In = getType(act.inType)
-			}
-			if act.funcType.NumOut() > 0 {
-				actionApi.Out = getType(act.funcType.Out(0))
-			}
-			out = append(out, actionApi)
-		}
 	}
 	websocketServicesLock.RUnlock()
 
@@ -152,11 +136,4 @@ func getType(t reflect.Type) any {
 	default:
 		return t.String()
 	}
-}
-
-// 自动注册文档服务
-func init() {
-	Register(0, "/__DOC__", func() string {
-		return MakeJsonDocument()
-	}, "API Document")
 }

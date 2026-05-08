@@ -9,10 +9,15 @@ import (
 
 func TestWebSocketService(t *testing.T) {
 	// 注册 WebSocket 服务
-	ar := RegisterWebsocket(0, "/ws", nil, nil, "test websocket")
-	ar.RegisterAction(0, "echo", func(in struct{ Msg string }) Map {
-		return Map{"action": "echo", "reply": in.Msg}
-	}, "echo action")
+	RegisterWebsocket(0, "/ws", func(conn *websocket.Conn) {
+		for {
+			var msg Map
+			if err := conn.ReadJSON(&msg); err != nil {
+				break
+			}
+			_ = conn.WriteJSON(Map{"reply": msg["msg"]})
+		}
+	}, "test websocket")
 
 	// 启动测试服务器
 	server := httptest.NewServer(&routeHandler{})

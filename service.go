@@ -9,6 +9,12 @@ import (
 	"sync"
 )
 
+// Map 通用 Map 类型
+type Map = map[string]any
+
+// Arr 通用切片类型
+type Arr = []any
+
 // WebServiceOptions 服务注册选项
 type WebServiceOptions struct {
 	Priority int
@@ -58,9 +64,8 @@ var (
 	webServicesList  = make([]*webServiceType, 0)
 
 	websocketServices      = make(map[string]*websocketServiceType)
-	regexWebsocketServices = make([]*websocketServiceType, 0)
 	websocketServicesLock  = sync.RWMutex{}
-	websocketServicesList  = make([]*websocketServiceType, 0)
+	websocketServicesList  = make([]*webServiceType, 0)
 
 	// 过滤器与拦截器
 	inFilters       = make([]func(*map[string]any, *Request, *Response, *log.Logger) any, 0)

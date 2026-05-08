@@ -2,7 +2,6 @@ package service
 
 import (
 	"apigo.cc/go/cast"
-	"apigo.cc/go/id"
 	"apigo.cc/go/log"
 	"apigo.cc/go/standard"
 	"encoding/json"
@@ -25,7 +24,7 @@ func (rh *routeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	startTime := time.Now()
 	requestId := r.Header.Get(standard.DiscoverHeaderRequestId)
 	if requestId == "" {
-		requestId = id.MakeID(12)
+		requestId = MakeId(12)
 		r.Header.Set(standard.DiscoverHeaderRequestId, requestId)
 	}
 
@@ -278,7 +277,7 @@ func handleClientKeys(request *Request, response *Response) {
 			if sessionIdMaker != nil {
 				sessionId = sessionIdMaker()
 			} else {
-				sessionId = id.MakeID(14)
+				sessionId = MakeId(14)
 			}
 			if !Config.SessionWithoutCookie {
 				http.SetCookie(response.Writer, &http.Cookie{
@@ -302,7 +301,7 @@ func handleClientKeys(request *Request, response *Response) {
 			}
 		}
 		if deviceId == "" {
-			deviceId = id.MakeID(14)
+			deviceId = MakeId(14)
 			if !Config.DeviceWithoutCookie {
 				http.SetCookie(response.Writer, &http.Cookie{
 					Name:     usedDeviceIdKey,
