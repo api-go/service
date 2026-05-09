@@ -1,7 +1,6 @@
 package service
 
 import (
-	"apigo.cc/go/discover"
 	gohttp "apigo.cc/go/http"
 	"apigo.cc/go/log"
 	"fmt"
@@ -117,7 +116,12 @@ func processProxy(request *Request, response *Response, logger *log.Logger) bool
 		copyResponse(res, response, logger)
 	} else {
 		// Discover 代理
-		caller := discover.NewCaller(request.Request, logger)
+		if GlobalDiscoverer == nil {
+			logger.Error("proxy failed: GlobalDiscoverer is not initialized")
+			response.WriteHeader(http.StatusBadGateway)
+			return true
+		}
+		caller := GlobalDiscoverer.NewCaller(request.Request, logger)
 		caller.NoBody = true
 		res, _ := caller.ManualDoWithNode(request.Method, app, "", path, request.Body)
 		copyResponse(res, response, logger)

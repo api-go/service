@@ -1,6 +1,7 @@
 package service
 
 import (
+	"apigo.cc/go/config"
 	"apigo.cc/go/discover"
 	"apigo.cc/go/log"
 	"context"
@@ -16,6 +17,9 @@ import (
 	"time"
 )
 
+// GlobalDiscoverer 供服务框架内部使用的发现实例
+var GlobalDiscoverer *discover.Discoverer
+
 // AsyncServer 异步服务实例
 type AsyncServer struct {
 	server      *http.Server
@@ -24,6 +28,7 @@ type AsyncServer struct {
 	stopChan    chan os.Signal
 	startChan   chan bool
 	useDiscover bool
+	discoverer  *discover.Discoverer
 }
 
 // AsyncStart 异步启动服务
@@ -105,10 +110,23 @@ func (as *AsyncServer) start() {
 		ip := GetServerIp()
 		discoverAddr := fmt.Sprintf("%s:%s", ip, port)
 
-		conf := discover.GetConfig()
-		conf.App = appName
-		discover.SetConfig(conf)
-		if discover.Start(discoverAddr) {
+		// 从 discover.yml/json 加载基础结构，但不包含敏感的 SafeBuf
+		// 此处不再强行注入 discover.Config 的 Calls，而是留给具体业务手动注入，或者后续提供安全的反序列化机制
+		var discConf discover.Config
+		_ = config.Load(&discConf, "discover")
+		
+		// Logger 继承
+		logger := log.DefaultLogger
+
+		// 解析必需的 Registry，支持环境变量 fallback
+		registry := os.Getenv("DISCOVER_REGISTRY")
+		if registry == "" {
+			registry = "127.0.0.1:6379::15" // Default fallback
+		}
+
+		as.discoverer = discover.Start(registry, appName, discoverAddr, logger, discConf)
+		GlobalDiscoverer = as.discoverer
+		if as.discoverer != nil {
 			log.DefaultLogger.Info("discover registered", "app", appName, "addr", discoverAddr)
 		}
 	}
@@ -127,8 +145,8 @@ func (as *AsyncServer) start() {
 // Stop 停止服务
 func (as *AsyncServer) Stop() {
 	log.DefaultLogger.Info("service stopping")
-	if as.useDiscover {
-		discover.Stop()
+	if as.discoverer != nil {
+		as.discoverer.Stop()
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
