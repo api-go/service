@@ -6,8 +6,20 @@ type CertSet struct {
 	KeyFile  string
 }
 
+// CallConfig 下游服务调用配置
+type CallConfig struct {
+	Timeout int    // 超时时间 (ms)
+	Token   string // 访问凭证
+	Http2   bool   // 是否强制使用 HTTP/2 (H2C)
+	SSL     bool   // 是否使用 HTTPS/WSS
+}
+
 // ServiceConfig 核心服务配置
 type ServiceConfig struct {
+	App                           string              // 应用名称。优先从环境变量 DISCOVER_APP 获取，若为空则自动通过代码检测。
+	Register                      string              // 发现服务注册中心地址。支持 Redis URL 或 Redis 配置名称。
+	Weight                        int                 // 当前节点在发现服务中的权重 (默认 100)
+	Calls                         map[string]CallConfig // 依赖的下游服务调用配置
 	Listen                        string              // 监听端口（|隔开多个监听）（,隔开多个选项），例如 80,http|443|443:h2|127.0.0.1:8080,h2c
 	SSL                           map[string]*CertSet // SSL 证书配置，key 为域名
 	NoLogGets                     bool                // 不记录 GET 请求的日志
@@ -29,7 +41,6 @@ type ServiceConfig struct {
 	StatisticTimeInterval         int                 // 统计时间间隔 (ms)
 	Fast                          bool                // 是否启用快速模式
 	MaxUploadSize                 int64               // 最大上传文件大小 (Bytes)
-	IpPrefix                      string              // Discover 服务发现时指定使用的 IP 网段
 	Cpu                           int                 // CPU 占用的核数限制
 	Memory                        int                 // 内存限制 (MB)
 	CpuMonitor                    bool                // 记录 CPU 使用情况
@@ -42,7 +53,6 @@ type ServiceConfig struct {
 	SessionWithoutCookie          bool                // Session 禁用 Cookie
 	DeviceWithoutCookie           bool                // 设备ID禁用 Cookie
 	IdServer                      string              // Redis 服务器连接 (用于全局唯一 ID 生成)
-	DiscoverApp                   string              // Discover 应用名称。优先从环境变量 DISCOVER_APP 获取，若为空则自动通过代码检测。
 	KeepKeyCase                   bool                // 是否保持 Key 的首字母大小写
 	IndexFiles                    []string            // 静态文件索引文件
 	IndexDir                      bool                // 访问目录时显示文件列表

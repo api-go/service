@@ -1,9 +1,9 @@
 package service
 
 import (
-	"apigo.cc/go/config"
 	"apigo.cc/go/discover"
 	"apigo.cc/go/log"
+	"apigo.cc/go/safe"
 	"context"
 	"fmt"
 	"golang.org/x/net/http2"
@@ -70,11 +70,11 @@ func (as *AsyncServer) start() {
 	}
 
 	// 检查是否需要启动服务发现
-	appName := Config.DiscoverApp
+	appName := Config.App
 	if appName == "" {
 		appName = GetDefaultName()
 	}
-	if appName != "" {
+	if appName != "" || Config.Register != "" {
 		as.useDiscover = true
 	}
 
@@ -105,26 +105,48 @@ func (as *AsyncServer) start() {
 	}
 
 	// 启动服务发现
-	if as.useDiscover && appName != "" {
+	if as.useDiscover {
 		_, port, _ := net.SplitHostPort(as.Addr)
 		ip := GetServerIp()
 		discoverAddr := fmt.Sprintf("%s:%s", ip, port)
 
-		// 从 discover.yml/json 加载基础结构，但不包含敏感的 SafeBuf
-		// 此处不再强行注入 discover.Config 的 Calls，而是留给具体业务手动注入，或者后续提供安全的反序列化机制
-		var discConf discover.Config
-		_ = config.Load(&discConf, "discover")
-		
-		// Logger 继承
-		logger := log.DefaultLogger
+		// 转换配置
+		discConf := discover.Config{
+			Weight:         Config.Weight,
+			CallRetryTimes: 10, // Default
+			Calls:          make(map[string]discover.CallConfig),
+		}
 
-		// 解析必需的 Registry，支持环境变量 fallback
-		registry := os.Getenv("DISCOVER_REGISTRY")
+		if discConf.Weight <= 0 {
+			discConf.Weight = 100
+		}
+
+		for name, call := range Config.Calls {
+			dc := discover.CallConfig{
+				Http2: call.Http2,
+				SSL:   call.SSL,
+			}
+			if call.Timeout > 0 {
+				dc.Timeout = time.Duration(call.Timeout) * time.Millisecond
+			} else if Config.RedirectTimeout > 0 {
+				dc.Timeout = time.Duration(Config.RedirectTimeout) * time.Millisecond
+			}
+			if call.Token != "" {
+				dc.Token = safe.NewSafeBuf([]byte(call.Token))
+			}
+			discConf.Calls[name] = dc
+		}
+
+		// 解析必需的 Register，支持环境变量 fallback
+		registry := Config.Register
+		if registry == "" {
+			registry = os.Getenv("DISCOVER_REGISTRY")
+		}
 		if registry == "" {
 			registry = "127.0.0.1:6379::15" // Default fallback
 		}
 
-		as.discoverer = discover.Start(registry, appName, discoverAddr, logger, discConf)
+		as.discoverer = discover.Start(registry, appName, discoverAddr, log.DefaultLogger, discConf)
 		GlobalDiscoverer = as.discoverer
 		if as.discoverer != nil {
 			log.DefaultLogger.Info("discover registered", "app", appName, "addr", discoverAddr)

@@ -32,7 +32,7 @@ func TestGetServerIp(t *testing.T) {
 func TestSmartStartup(t *testing.T) {
 	// Reset config
 	Config.Listen = ""
-	Config.DiscoverApp = "smart-test"
+	Config.App = "smart-test"
 	
 	as := AsyncStart()
 	if as.Addr == "" {
