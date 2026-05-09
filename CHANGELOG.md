@@ -8,7 +8,7 @@
 - **H2C Server**: 原生支持 HTTP/2 Cleartext (h2c) 服务端协议，提升微服务间通信性能。
 
 ### Changed
-- **Infrastructure Alignment**: `go.mod` 引入 `golang.org/x/net` 以支持 H2C。
+- **Infrastructure Alignment**: `go.mod` 引入 `golang.org/x/net` 以支持 H2C，升级 `go/discover` 至 `v1.0.9`。
 - **IO Security**: 持续优化 `go/file` 在静态文件服务中的应用。
 
 ## v1.0.2 (2026-05-09)

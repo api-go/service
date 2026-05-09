@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	apigo.cc/go/cast v1.2.8
 	apigo.cc/go/config v1.0.7
-	apigo.cc/go/discover v1.0.7
+	apigo.cc/go/discover v1.0.9
 	apigo.cc/go/file v1.0.7
 	apigo.cc/go/http v1.0.10
 	apigo.cc/go/id v1.0.5
