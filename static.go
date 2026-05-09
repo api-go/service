@@ -5,7 +5,6 @@ import (
 	"apigo.cc/go/log"
 	"mime"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -74,16 +73,16 @@ func processStatic(requestPath string, request *Request, response *Response, log
 		return false
 	}
 
-	info, err := os.Stat(filePath)
-	if err != nil {
+	info := file.GetFileInfo(filePath)
+	if info == nil {
 		return false
 	}
 
-	if info.IsDir() {
+	if info.IsDir {
 		// 自动查找索引文件
 		for _, indexFile := range Config.IndexFiles {
 			f := filepath.Join(filePath, indexFile)
-			if i, err := os.Stat(f); err == nil && !i.IsDir() {
+			if i := file.GetFileInfo(f); i != nil && !i.IsDir {
 				filePath = f
 				info = i
 				break
@@ -91,14 +90,15 @@ func processStatic(requestPath string, request *Request, response *Response, log
 		}
 	}
 
-	if info.IsDir() {
+	if info.IsDir {
 		return false
 	}
 
 	// 检查 304
 	if ifModifiedSince := request.Header.Get("If-Modified-Since"); ifModifiedSince != "" {
 		if t, err := time.Parse(http.TimeFormat, ifModifiedSince); err == nil {
-			if !info.ModTime().Truncate(time.Second).After(t.Truncate(time.Second)) {
+			if time.Unix(info.ModTime, 0).Truncate(time.Second).Before(t.Truncate(time.Second)) ||
+				time.Unix(info.ModTime, 0).Truncate(time.Second).Equal(t.Truncate(time.Second)) {
 				response.WriteHeader(http.StatusNotModified)
 				return true
 			}
@@ -111,7 +111,7 @@ func processStatic(requestPath string, request *Request, response *Response, log
 		contentType = "application/octet-stream"
 	}
 	response.Header().Set("Content-Type", contentType)
-	response.Header().Set("Last-Modified", info.ModTime().UTC().Format(http.TimeFormat))
+	response.Header().Set("Last-Modified", time.Unix(info.ModTime, 0).UTC().Format(http.TimeFormat))
 
 	data, err := file.ReadBytes(filePath)
 	if err != nil {

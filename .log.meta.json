@@ -1,267 +1,1241 @@
 {
   "debug": [
     {
-      "index": 0,
-      "name": "LogName",
-      "color": "cyan",
-      "hide": true
+      "Index": 0,
+      "Name": "LogName",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "cyan",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
     },
     {
-      "index": 1,
-      "name": "LogType",
-      "color": "magenta",
-      "hide": true
+      "Index": 1,
+      "Name": "LogType",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "magenta",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
     },
     {
-      "index": 2,
-      "name": "LogTime",
-      "format": "time"
+      "Index": 2,
+      "Name": "LogTime",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "time",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
     },
     {
-      "index": 3,
-      "name": "TraceId",
-      "color": "blue"
+      "Index": 3,
+      "Name": "TraceId",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "gray",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": true,
+      "Hide": false
     },
     {
-      "index": 4,
-      "name": "Image",
-      "color": "darkGray",
-      "hide": true
+      "Index": 4,
+      "Name": "Image",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
     },
     {
-      "index": 5,
-      "name": "Server",
-      "color": "darkGray",
-      "hide": true
+      "Index": 5,
+      "Name": "Server",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
     },
     {
-      "index": 6,
-      "name": "Debug",
-      "withoutKey": true
+      "Index": 6,
+      "Name": "Debug",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": true,
+      "Hide": false
     },
     {
-      "index": 7,
-      "name": "Extra"
+      "Index": 7,
+      "Name": "Extra",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
     }
   ],
   "discover": [
     {
-      "index": 0,
-      "name": "LogName",
-      "color": "cyan",
-      "hide": true
+      "Index": 0,
+      "Name": "LogName",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "cyan",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
     },
     {
-      "index": 1,
-      "name": "LogType",
-      "color": "magenta",
-      "hide": true
+      "Index": 1,
+      "Name": "LogType",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "magenta",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
     },
     {
-      "index": 2,
-      "name": "LogTime",
-      "format": "time"
+      "Index": 2,
+      "Name": "LogTime",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "time",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
     },
     {
-      "index": 3,
-      "name": "TraceId",
-      "color": "blue"
+      "Index": 3,
+      "Name": "TraceId",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "gray",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": true,
+      "Hide": false
     },
     {
-      "index": 4,
-      "name": "Image",
-      "color": "darkGray",
-      "hide": true
+      "Index": 4,
+      "Name": "Image",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
     },
     {
-      "index": 5,
-      "name": "Server",
-      "color": "darkGray",
-      "hide": true
+      "Index": 5,
+      "Name": "Server",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
     },
     {
-      "index": 6,
-      "name": "App",
-      "color": "cyan"
+      "Index": 6,
+      "Name": "App",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "cyan",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
     },
     {
-      "index": 7,
-      "name": "Method",
-      "color": "magenta"
+      "Index": 7,
+      "Name": "Method",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "magenta",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
     },
     {
-      "index": 8,
-      "name": "Path",
-      "color": "blue"
+      "Index": 8,
+      "Name": "Path",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "blue",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
     },
     {
-      "index": 9,
-      "name": "Node",
-      "color": "yellow"
+      "Index": 9,
+      "Name": "Node",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "yellow",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
     },
     {
-      "index": 10,
-      "name": "Attempts"
+      "Index": 10,
+      "Name": "Attempts",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
     },
     {
-      "index": 11,
-      "name": "UsedTime",
-      "format": "%.2fms"
+      "Index": 11,
+      "Name": "UsedTime",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "%.2fms",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
     },
     {
-      "index": 12,
-      "name": "Error",
-      "color": "red"
+      "Index": 12,
+      "Name": "Error",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "red",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
     },
     {
-      "index": 13,
-      "name": "Extra"
+      "Index": 13,
+      "Name": "Extra",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
     }
   ],
   "error": [
     {
-      "index": 0,
-      "name": "LogName",
-      "color": "cyan",
-      "hide": true
+      "Index": 0,
+      "Name": "LogName",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "cyan",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
     },
     {
-      "index": 1,
-      "name": "LogType",
-      "color": "magenta",
-      "hide": true
+      "Index": 1,
+      "Name": "LogType",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "magenta",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
     },
     {
-      "index": 2,
-      "name": "LogTime",
-      "format": "time"
+      "Index": 2,
+      "Name": "LogTime",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "time",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
     },
     {
-      "index": 3,
-      "name": "TraceId",
-      "color": "blue"
+      "Index": 3,
+      "Name": "TraceId",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "gray",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": true,
+      "Hide": false
     },
     {
-      "index": 4,
-      "name": "Image",
-      "color": "darkGray",
-      "hide": true
+      "Index": 4,
+      "Name": "Image",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
     },
     {
-      "index": 5,
-      "name": "Server",
-      "color": "darkGray",
-      "hide": true
+      "Index": 5,
+      "Name": "Server",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
     },
     {
-      "index": 6,
-      "name": "Error",
-      "color": "red",
-      "withoutKey": true
+      "Index": 6,
+      "Name": "Error",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "red",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": true,
+      "Hide": false
     },
     {
-      "index": 7,
-      "name": "CallStacks"
+      "Index": 7,
+      "Name": "Extra",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
     },
     {
-      "index": 8,
-      "name": "Extra"
+      "Index": 8,
+      "Name": "CallStacks",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
     }
   ],
   "info": [
     {
-      "index": 0,
-      "name": "LogName",
-      "color": "cyan",
-      "hide": true
+      "Index": 0,
+      "Name": "LogName",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "cyan",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
     },
     {
-      "index": 1,
-      "name": "LogType",
-      "color": "magenta",
-      "hide": true
+      "Index": 1,
+      "Name": "LogType",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "magenta",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
     },
     {
-      "index": 2,
-      "name": "LogTime",
-      "format": "time"
+      "Index": 2,
+      "Name": "LogTime",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "time",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
     },
     {
-      "index": 3,
-      "name": "TraceId",
-      "color": "blue"
+      "Index": 3,
+      "Name": "TraceId",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "gray",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": true,
+      "Hide": false
     },
     {
-      "index": 4,
-      "name": "Image",
-      "color": "darkGray",
-      "hide": true
+      "Index": 4,
+      "Name": "Image",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
     },
     {
-      "index": 5,
-      "name": "Server",
-      "color": "darkGray",
-      "hide": true
+      "Index": 5,
+      "Name": "Server",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
     },
     {
-      "index": 6,
-      "name": "Info",
-      "color": "cyan",
-      "withoutKey": true
+      "Index": 6,
+      "Name": "Info",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "cyan",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": true,
+      "Hide": false
     },
     {
-      "index": 7,
-      "name": "Extra"
+      "Index": 7,
+      "Name": "Extra",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
+    }
+  ],
+  "monitor": [
+    {
+      "Index": 0,
+      "Name": "LogName",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "cyan",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
+    },
+    {
+      "Index": 1,
+      "Name": "LogType",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "magenta",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
+    },
+    {
+      "Index": 2,
+      "Name": "LogTime",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "time",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
+    },
+    {
+      "Index": 3,
+      "Name": "TraceId",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "gray",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": true,
+      "Hide": false
+    },
+    {
+      "Index": 4,
+      "Name": "Image",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
+    },
+    {
+      "Index": 5,
+      "Name": "Server",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
+    },
+    {
+      "Index": 6,
+      "Name": "Target",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
+    },
+    {
+      "Index": 7,
+      "Name": "Status",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
+    },
+    {
+      "Index": 8,
+      "Name": "Message",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
+    },
+    {
+      "Index": 9,
+      "Name": "Extra",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
+    }
+  ],
+  "request": [
+    {
+      "Index": 0,
+      "Name": "LogName",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "cyan",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
+    },
+    {
+      "Index": 1,
+      "Name": "LogType",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "magenta",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
+    },
+    {
+      "Index": 2,
+      "Name": "LogTime",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "time",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
+    },
+    {
+      "Index": 3,
+      "Name": "TraceId",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "gray",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": true,
+      "Hide": false
+    },
+    {
+      "Index": 4,
+      "Name": "Image",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
+    },
+    {
+      "Index": 5,
+      "Name": "Server",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
+    },
+    {
+      "Index": 6,
+      "Name": "ServerId",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
+    },
+    {
+      "Index": 7,
+      "Name": "App",
+      "KeyName": "App",
+      "AttachBefore": false,
+      "Color": "cyan",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
+    },
+    {
+      "Index": 8,
+      "Name": "Node",
+      "KeyName": "",
+      "AttachBefore": true,
+      "Color": "gray",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
+    },
+    {
+      "Index": 9,
+      "Name": "FromApp",
+      "KeyName": "From",
+      "AttachBefore": false,
+      "Color": "cyan",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
+    },
+    {
+      "Index": 10,
+      "Name": "FromNode",
+      "KeyName": "",
+      "AttachBefore": true,
+      "Color": "gray",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
+    },
+    {
+      "Index": 11,
+      "Name": "ClientIp",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": true,
+      "Hide": false
+    },
+    {
+      "Index": 12,
+      "Name": "ClientAppName",
+      "KeyName": "Client",
+      "AttachBefore": true,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
+    },
+    {
+      "Index": 13,
+      "Name": "ClientAppVersion",
+      "KeyName": "",
+      "AttachBefore": true,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
+    },
+    {
+      "Index": 14,
+      "Name": "UserId",
+      "KeyName": "User",
+      "AttachBefore": false,
+      "Color": "magenta",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
+    },
+    {
+      "Index": 15,
+      "Name": "DeviceId",
+      "KeyName": "Device",
+      "AttachBefore": false,
+      "Color": "gray",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
+    },
+    {
+      "Index": 16,
+      "Name": "SessionId",
+      "KeyName": "Session",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
+    },
+    {
+      "Index": 17,
+      "Name": "Host",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "gray",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": true,
+      "Hide": false
+    },
+    {
+      "Index": 18,
+      "Name": "Method",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "gray",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": true,
+      "Hide": false
+    },
+    {
+      "Index": 19,
+      "Name": "Path",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "cyan",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": true,
+      "Hide": false
+    },
+    {
+      "Index": 20,
+      "Name": "Scheme",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "gray",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": true,
+      "Hide": false
+    },
+    {
+      "Index": 21,
+      "Name": "Proto",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "gray",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": true,
+      "Hide": false
+    },
+    {
+      "Index": 22,
+      "Name": "AuthLevel",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "green",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
+    },
+    {
+      "Index": 23,
+      "Name": "Priority",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
+    },
+    {
+      "Index": 24,
+      "Name": "RequestData",
+      "KeyName": "Request",
+      "AttachBefore": false,
+      "Color": "cyan",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
+    },
+    {
+      "Index": 25,
+      "Name": "RequestHeaders",
+      "KeyName": "Headers",
+      "AttachBefore": false,
+      "Color": "cyan",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
+    },
+    {
+      "Index": 26,
+      "Name": "UsedTime",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "green",
+      "Format": "",
+      "Precision": 6,
+      "WithoutKey": false,
+      "Hide": false
+    },
+    {
+      "Index": 27,
+      "Name": "ResponseCode",
+      "KeyName": "Status",
+      "AttachBefore": false,
+      "Color": "magenta",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
+    },
+    {
+      "Index": 28,
+      "Name": "ResponseDataLength",
+      "KeyName": "ContentLength",
+      "AttachBefore": false,
+      "Color": "magenta",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
+    },
+    {
+      "Index": 29,
+      "Name": "ResponseData",
+      "KeyName": "Response",
+      "AttachBefore": false,
+      "Color": "magenta",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
+    },
+    {
+      "Index": 30,
+      "Name": "ResponseHeaders",
+      "KeyName": "Headers",
+      "AttachBefore": false,
+      "Color": "magenta",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
+    },
+    {
+      "Index": 31,
+      "Name": "Extra",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
+    }
+  ],
+  "statistic": [
+    {
+      "Index": 0,
+      "Name": "LogName",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "cyan",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
+    },
+    {
+      "Index": 1,
+      "Name": "LogType",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "magenta",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
+    },
+    {
+      "Index": 2,
+      "Name": "LogTime",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "time",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
+    },
+    {
+      "Index": 3,
+      "Name": "TraceId",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "gray",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": true,
+      "Hide": false
+    },
+    {
+      "Index": 4,
+      "Name": "Image",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
+    },
+    {
+      "Index": 5,
+      "Name": "Server",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
+    },
+    {
+      "Index": 6,
+      "Name": "Category",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
+    },
+    {
+      "Index": 7,
+      "Name": "Item",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
+    },
+    {
+      "Index": 8,
+      "Name": "Value",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
+    },
+    {
+      "Index": 9,
+      "Name": "Extra",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
+    }
+  ],
+  "task": [
+    {
+      "Index": 0,
+      "Name": "LogName",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "cyan",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
+    },
+    {
+      "Index": 1,
+      "Name": "LogType",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "magenta",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
+    },
+    {
+      "Index": 2,
+      "Name": "LogTime",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "time",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
+    },
+    {
+      "Index": 3,
+      "Name": "TraceId",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "gray",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": true,
+      "Hide": false
+    },
+    {
+      "Index": 4,
+      "Name": "Image",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
+    },
+    {
+      "Index": 5,
+      "Name": "Server",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
+    },
+    {
+      "Index": 6,
+      "Name": "Task",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
+    },
+    {
+      "Index": 7,
+      "Name": "UsedTime",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
+    },
+    {
+      "Index": 8,
+      "Name": "Success",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
+    },
+    {
+      "Index": 9,
+      "Name": "Message",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
+    },
+    {
+      "Index": 10,
+      "Name": "Extra",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
     }
   ],
   "warning": [
     {
-      "index": 0,
-      "name": "LogName",
-      "color": "cyan",
-      "hide": true
+      "Index": 0,
+      "Name": "LogName",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "cyan",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
     },
     {
-      "index": 1,
-      "name": "LogType",
-      "color": "magenta",
-      "hide": true
+      "Index": 1,
+      "Name": "LogType",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "magenta",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
     },
     {
-      "index": 2,
-      "name": "LogTime",
-      "format": "time"
+      "Index": 2,
+      "Name": "LogTime",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "time",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
     },
     {
-      "index": 3,
-      "name": "TraceId",
-      "color": "blue"
+      "Index": 3,
+      "Name": "TraceId",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "gray",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": true,
+      "Hide": false
     },
     {
-      "index": 4,
-      "name": "Image",
-      "color": "darkGray",
-      "hide": true
+      "Index": 4,
+      "Name": "Image",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
     },
     {
-      "index": 5,
-      "name": "Server",
-      "color": "darkGray",
-      "hide": true
+      "Index": 5,
+      "Name": "Server",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": true
     },
     {
-      "index": 6,
-      "name": "Warning",
-      "color": "yellow",
-      "withoutKey": true
+      "Index": 6,
+      "Name": "Warning",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "yellow",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": true,
+      "Hide": false
     },
     {
-      "index": 7,
-      "name": "CallStacks"
+      "Index": 7,
+      "Name": "Extra",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
     },
     {
-      "index": 8,
-      "name": "Extra"
+      "Index": 8,
+      "Name": "CallStacks",
+      "KeyName": "",
+      "AttachBefore": false,
+      "Color": "",
+      "Format": "",
+      "Precision": 0,
+      "WithoutKey": false,
+      "Hide": false
     }
   ]
 }

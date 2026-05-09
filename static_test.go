@@ -19,7 +19,7 @@ func TestStaticService(t *testing.T) {
 	// 注册静态目录
 	Static("/ui", tempDir)
 
-	rh := &routeHandler{}
+	rh := &RouteHandler{}
 	
 	// 测试成功访问
 	req := httptest.NewRequest("GET", "/ui/index.html", nil)

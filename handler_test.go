@@ -12,9 +12,9 @@ func TestServeHTTP(t *testing.T) {
 	handler := func(in struct{ Name string }) string {
 		return "Hello " + in.Name
 	}
-	Register(0, "/hello", handler, "say hello")
+	Host("*").POST("/hello", handler).Auth(0).Memo("say hello")
 
-	rh := &routeHandler{}
+	rh := &RouteHandler{}
 	
 	// 模拟请求
 	req := httptest.NewRequest("POST", "/hello", strings.NewReader(`{"name":"Star"}`))
@@ -34,7 +34,7 @@ func TestServeHTTP(t *testing.T) {
 }
 
 func TestServeHTTP_404(t *testing.T) {
-	rh := &routeHandler{}
+	rh := &RouteHandler{}
 	req := httptest.NewRequest("GET", "/notfound", nil)
 	w := httptest.NewRecorder()
 
@@ -52,9 +52,9 @@ func TestServeHTTP_VerifyFailed(t *testing.T) {
 	handler := func(in ValidIn) string {
 		return "ok"
 	}
-	Register(0, "/verify", handler, "test verify")
+	Host("*").POST("/verify", handler).Auth(0).Memo("test verify")
 
-	rh := &routeHandler{}
+	rh := &RouteHandler{}
 	req := httptest.NewRequest("POST", "/verify", strings.NewReader(`{"age":10}`))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()

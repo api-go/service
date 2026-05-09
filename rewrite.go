@@ -6,47 +6,42 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
-	"sync"
 )
 
-type rewriteInfo struct {
+type rewriteType struct {
 	matcher  *regexp.Regexp
 	fromPath string
 	toPath   string
 }
 
-var (
-	rewrites      = make(map[string]*rewriteInfo)
-	regexRewrites = make([]*rewriteInfo, 0)
-	rewriteBy     func(*Request) (string, bool)
-	rewritesLock  = sync.RWMutex{}
-)
-
-// Rewrite 注册重写规则
-func Rewrite(path string, toPath string) {
-	s := &rewriteInfo{fromPath: path, toPath: toPath}
+func (hc *HostContext) Rewrite(path string, toPath string) *HostContext {
+	s := &rewriteType{fromPath: path, toPath: toPath}
 
 	if strings.ContainsRune(path, '(') {
 		matcher, err := regexp.Compile("^" + path + "$")
 		if err == nil {
 			s.matcher = matcher
-			rewritesLock.Lock()
-			regexRewrites = append(regexRewrites, s)
-			rewritesLock.Unlock()
 		}
-	} else {
-		rewritesLock.Lock()
-		rewrites[path] = s
-		rewritesLock.Unlock()
 	}
-}
 
-// SetRewriteBy 设置动态重写函数
-func SetRewriteBy(by func(request *Request) (toPath string, rewrite bool)) {
-	rewriteBy = by
+	hostPoliciesLock.Lock()
+	defer hostPoliciesLock.Unlock()
+	hostRewrites[hc.host] = append(hostRewrites[hc.host], s)
+	return hc
 }
 
 func processRewrite(request *Request, response *Response, logger *log.Logger) bool {
+	host := request.Host
+	hostOnly, port, _ := strings.Cut(host, ":")
+	hosts := []string{host}
+	if port != "" {
+		hosts = append(hosts, hostOnly, ":"+port)
+	}
+	hosts = append(hosts, "*")
+
+	hostPoliciesLock.RLock()
+	defer hostPoliciesLock.RUnlock()
+
 	requestPath := request.RequestURI
 	queryString := ""
 	if pos := strings.Index(requestPath, "?"); pos != -1 {
@@ -54,25 +49,22 @@ func processRewrite(request *Request, response *Response, logger *log.Logger) bo
 		requestPath = requestPath[:pos]
 	}
 
-	var rewriteToPath string
-	var found bool
+	for _, h := range hosts {
+		rewrites, exists := hostRewrites[h]
+		if !exists {
+			continue
+		}
 
-	rewritesLock.RLock()
-	// 1. 精确匹配
-	if ri, ok := rewrites[requestPath]; ok {
-		rewriteToPath = ri.toPath
-		found = true
-	}
+		for _, ri := range rewrites {
+			found := false
+			rewriteToPath := ""
 
-	// 2. 动态重写
-	if !found && rewriteBy != nil {
-		rewriteToPath, found = rewriteBy(request)
-	}
-
-	// 3. 正则匹配
-	if !found {
-		for _, ri := range regexRewrites {
-			if ri.matcher != nil {
+			if ri.matcher == nil {
+				if ri.fromPath == requestPath {
+					rewriteToPath = ri.toPath
+					found = true
+				}
+			} else {
 				finds := ri.matcher.FindAllStringSubmatch(request.RequestURI, 1)
 				if len(finds) > 0 {
 					toPath := ri.toPath
@@ -81,31 +73,29 @@ func processRewrite(request *Request, response *Response, logger *log.Logger) bo
 					}
 					rewriteToPath = toPath
 					found = true
-					break
 				}
 			}
-		}
-	}
-	rewritesLock.RUnlock()
 
-	if found {
-		if strings.Contains(rewriteToPath, "://") {
-			// 外部重定向
-			if !strings.Contains(rewriteToPath, "?") && queryString != "" {
-				rewriteToPath += queryString
+			if found {
+				if strings.Contains(rewriteToPath, "://") {
+					// 外部重定向
+					if !strings.Contains(rewriteToPath, "?") && queryString != "" {
+						rewriteToPath += queryString
+					}
+					response.Header().Set("Location", rewriteToPath)
+					response.WriteHeader(302)
+					return true
+				} else {
+					// 内部重写
+					logger.Info("rewrite", "from", request.RequestURI, "to", rewriteToPath, "host", h)
+					if queryString != "" && !strings.Contains(rewriteToPath, "?") {
+						rewriteToPath += queryString
+					}
+					request.RequestURI = rewriteToPath
+					request.URL, _ = url.Parse(rewriteToPath)
+					return false // 继续后续处理
+				}
 			}
-			response.Header().Set("Location", rewriteToPath)
-			response.WriteHeader(302)
-			return true
-		} else {
-			// 内部重写
-			logger.Info("rewrite", "from", request.RequestURI, "to", rewriteToPath)
-			if queryString != "" && !strings.Contains(rewriteToPath, "?") {
-				rewriteToPath += queryString
-			}
-			request.RequestURI = rewriteToPath
-			request.URL, _ = url.Parse(rewriteToPath)
-			return false // 继续后续处理
 		}
 	}
 

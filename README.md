@@ -11,29 +11,33 @@
 
 ## API 指南
 
-### 1. 服务注册
+### 1. 服务注册 (Modern HostContext API)
 ```go
 import "apigo.cc/go/service"
 
-// 注册标准 Web 服务，自动注入 Struct 参数并执行校验
-service.Register(0, "/hello", func(in struct{ Name string `verify:"length:2+"` }) string {
+// 推荐：流式注册模式
+service.Host("*").POST("/hello", func(in struct{ Name string `verify:"length:2+"` }) string {
     return "Hello " + in.Name
-}, "打招呼接口")
+}).Auth(0).Memo("打招呼接口")
+
+// 快捷方法支持 GET, POST, PUT, DELETE, ANY 等
+service.Host("api.example.com").GET("/user/{id}", getUserInfo).Auth(1)
 ```
 
-### 2. WebSocket 支持 (极简模式)
+### 2. 分组注册 (Group)
 ```go
-// 业务自行处理消息循环与逻辑
-service.RegisterWebsocket(0, "/ws", func(conn *websocket.Conn, logger *log.Logger) {
+v1 := service.Host("*").Group("/api/v1")
+v1.GET("/profile", getProfile)
+v1.POST("/update", updateProfile)
+```
+
+### 3. WebSocket 支持 (极简模式)
+```go
+// 整合进 HostContext 链式调用
+service.Host("*").WebSocket("/ws", func(conn *websocket.Conn, logger *log.Logger) {
     defer conn.Close()
-    for {
-        _, msg, err := conn.ReadMessage()
-        if err != nil {
-            break
-        }
-        logger.Info("received", "msg", string(msg))
-    }
-}, "聊天室")
+    // ...
+}).Auth(0).Memo("聊天室")
 ```
 
 ### 3. 生命周期管理
@@ -51,6 +55,7 @@ func main() {
 - **URL 重写**: `service.Rewrite("/old", "/new")`
 - **反向代理**: `service.Proxy(0, "/api", "other_app", "/api")`
 - **文档生成**: `service.MakeDocument()` 返回全量接口描述
+- **依赖注入**: `service.GetInjectT[T]()` 快速获取已注入的对象或组件
 
 ## 基础设施对齐
 - **类型转换**: `apigo.cc/go/cast`

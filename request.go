@@ -1,16 +1,14 @@
 package service
 
 import (
-	"apigo.cc/go/cast"
-	"apigo.cc/go/standard"
+	"apigo.cc/go/discover"
+	"apigo.cc/go/file"
 	"io"
 	"mime/multipart"
 	"net"
 	"net/http"
 	"net/textproto"
 	"net/url"
-	"os"
-	"path/filepath"
 )
 
 // UploadFile 上传文件结构
@@ -28,25 +26,11 @@ func (f *UploadFile) Open() (multipart.File, error) {
 
 // Save 保存上传文件到本地
 func (f *UploadFile) Save(filename string) error {
-	dir := filepath.Dir(filename)
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		_ = os.MkdirAll(dir, 0755)
-	}
-
-	dst, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	data, err := f.Content()
 	if err != nil {
 		return err
 	}
-	defer dst.Close()
-
-	src, err := f.fileHeader.Open()
-	if err != nil {
-		return err
-	}
-	defer src.Close()
-
-	_, err = io.Copy(dst, src)
-	return err
+	return file.WriteBytes(filename, data)
 }
 
 // Content 获取上传文件内容
@@ -94,34 +78,37 @@ func (r *Request) Get(key string) any {
 
 // MakeUrl 根据当前请求构建完整 URL
 func (r *Request) MakeUrl(path string) string {
-	scheme := r.Header.Get(standard.DiscoverHeaderScheme)
+	scheme := r.Header.Get(discover.HeaderScheme)
 	if scheme == "" {
 		scheme = "http"
 	}
-	host := r.Header.Get(standard.DiscoverHeaderHost)
+	host := r.Header.Get(discover.HeaderHost)
 	if host == "" {
 		host = r.Host
 	}
 	return scheme + "://" + host + path
 }
 
-// GetSessionId 获取会话 ID
-func (r *Request) GetSessionId() string {
-	sessionId := r.Header.Get(Config.Listen) // Wait, this should be usedSessionIdKey
-	// TODO: Fix dependency on global usedSessionIdKey
-	return sessionId
+// DeviceId 获取设备 ID
+func (r *Request) DeviceId() string {
+	return r.Header.Get(discover.HeaderDeviceID)
+}
+
+// SessionId 获取会话 ID
+func (r *Request) SessionId() string {
+	return r.Header.Get(discover.HeaderSessionID)
 }
 
 // SetUserId 设置用户 ID（传递给下游）
 func (r *Request) SetUserId(userId string) {
-	r.Header.Set(standard.DiscoverHeaderUserId, userId)
+	r.Header.Set(discover.HeaderUserID, userId)
 }
 
-// GetRealIp 获取真实 IP
-func (r *Request) GetRealIp() string {
-	ip := r.Header.Get(standard.DiscoverHeaderClientIp)
+// ClientIp 获取真实 IP
+func (r *Request) ClientIp() string {
+	ip := r.Header.Get(discover.HeaderClientIP)
 	if ip == "" {
-		ip = r.Header.Get(standard.DiscoverHeaderForwardedFor)
+		ip = r.Header.Get(discover.HeaderForwardedFor)
 	}
 	if ip == "" {
 		host, _, err := net.SplitHostPort(r.RemoteAddr)
@@ -131,9 +118,4 @@ func (r *Request) GetRealIp() string {
 		return r.RemoteAddr
 	}
 	return ip
-}
-
-// GetLowerName (Aliased from cast)
-func GetLowerName(s string) string {
-	return cast.GetLowerName(s)
 }

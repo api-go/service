@@ -8,14 +8,14 @@ import (
 
 func TestRewrite(t *testing.T) {
 	// 注册重写规则
-	Rewrite("/old", "/new")
-	Rewrite("/regex/(.*)", "/target/$1")
+	Host("*").Rewrite("/old", "/new")
+	Host("*").Rewrite("/regex/(.*)", "/target/$1")
 	
 	// 注册目标服务
-	Register(0, "/new", func() string { return "new content" }, "new")
-	Register(0, "/target/123", func() string { return "target content" }, "target")
+	Host("*").ANY("/new", func() string { return "new content" }).Memo("new")
+	Host("*").ANY("/target/123", func() string { return "target content" }).Memo("target")
 
-	rh := &routeHandler{}
+	rh := &RouteHandler{}
 
 	// 测试精确匹配重写
 	req1 := httptest.NewRequest("GET", "/old", nil)
@@ -43,9 +43,9 @@ func TestProxyDirect(t *testing.T) {
 	defer backend.Close()
 
 	// 注册代理规则
-	Proxy(0, "/proxy", backend.URL, "/hello")
+	Host("*").Proxy(0, "/proxy", backend.URL, "/hello")
 
-	rh := &routeHandler{}
+	rh := &RouteHandler{}
 	req := httptest.NewRequest("GET", "/proxy", nil)
 	w := httptest.NewRecorder()
 	rh.ServeHTTP(w, req)

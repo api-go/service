@@ -50,7 +50,7 @@ func (as *AsyncServer) start() {
 	serverAddr = as.Addr
 
 	as.server = &http.Server{
-		Handler: &routeHandler{},
+		Handler: &RouteHandler{},
 	}
 
 	signal.Notify(as.stopChan, os.Interrupt, syscall.SIGTERM)

@@ -2,9 +2,9 @@ package service
 
 import (
 	"apigo.cc/go/cast"
+	"apigo.cc/go/discover"
 	"apigo.cc/go/log"
-	"apigo.cc/go/standard"
-	"encoding/json"
+	"apigo.cc/go/timer"
 	"io"
 	"net/http"
 	"reflect"
@@ -13,19 +13,19 @@ import (
 	"time"
 )
 
-type routeHandler struct {
+type RouteHandler struct {
 	webRequestingNum int64
 }
 
-func (rh *routeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	atomic.AddInt64(&rh.webRequestingNum, 1)
 	defer atomic.AddInt64(&rh.webRequestingNum, -1)
 
-	startTime := time.Now()
-	requestId := r.Header.Get(standard.DiscoverHeaderRequestId)
+	tracker := timer.Start()
+	requestId := r.Header.Get(discover.HeaderRequestID)
 	if requestId == "" {
 		requestId = MakeId(12)
-		r.Header.Set(standard.DiscoverHeaderRequestId, requestId)
+		r.Header.Set(discover.HeaderRequestID, requestId)
 	}
 
 	request := NewRequest(r)
@@ -73,9 +73,18 @@ func (rh *routeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	authLevel := 0
+	priority := 0
+	if s != nil {
+		authLevel = s.authLevel
+		priority = s.options.Priority
+	}
+
 	// 4. 处理业务执行 (WS 或 Web)
 	if result == nil {
 		if ws != nil {
+			authLevel = ws.authLevel
+			priority = ws.options.Priority
 			doWebsocketService(ws, request, response, requestLogger)
 			return
 		} else if s != nil {
@@ -94,7 +103,6 @@ func (rh *routeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if s == nil && result == nil {
 		response.WriteHeader(http.StatusNotFound)
-		return
 	}
 
 	// 5. 后置过滤器
@@ -112,36 +120,95 @@ func (rh *routeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	outputResult(response, result)
 
 	// 7. 记录日志
-	_ = startTime
+	if s == nil || !s.options.NoLog200 || response.Code != 200 {
+		scheme := "http"
+		if r.TLS != nil {
+			scheme = "https"
+		}
+		usedTime := float32(tracker.Stop().Seconds())
+
+		// 获取一些 Header 信息
+		reqHeaders := make(map[string]string)
+		for k, v := range r.Header {
+			reqHeaders[k] = strings.Join(v, ", ")
+		}
+		respHeaders := make(map[string]string)
+		for k, v := range response.Header() {
+			respHeaders[k] = strings.Join(v, ", ")
+		}
+
+		// 限制记录的 Body 长度
+		respData := ""
+		if response.Code != 200 {
+			if len(response.body) < 1024 {
+				respData = string(response.body)
+			} else {
+				respData = string(response.body[:1024]) + "..."
+			}
+		}
+
+		logRequest(
+			requestLogger,
+			r.Method, path, host, scheme, r.Proto,
+			request.ClientIp(), serverId, "", "", // app, node 暂无
+			r.Header.Get(discover.HeaderFromApp), r.Header.Get(discover.HeaderFromNode),
+			"", request.DeviceId(), request.SessionId(), requestId,
+			request.Header.Get(discover.HeaderClientAppName), request.Header.Get(discover.HeaderClientAppVersion),
+			authLevel, priority,
+			reqHeaders, args,
+			response.Code, usedTime,
+			respHeaders, respData, uint(len(response.body)),
+		)
+	}
 }
 
 func findService(method, host, path string) (*webServiceType, *websocketServiceType) {
 	webServicesLock.RLock()
 	defer webServicesLock.RUnlock()
 
-	// 1. Web Service 匹配
-	if s, exists := webServices[method+path]; exists {
-		return s, nil
+	// 1. 准备 Host 候选列表: "host:port", "host", ":port", "*"
+	hostOnly, port, _ := strings.Cut(host, ":")
+	hosts := []string{host}
+	if port != "" {
+		hosts = append(hosts, hostOnly, ":"+port)
 	}
-	if s, exists := webServices[path]; exists {
-		return s, nil
+	hosts = append(hosts, "*")
+
+	// 2. 匹配 Web Service
+	for _, h := range hosts {
+		if services, exists := webServices[h]; exists {
+			if s, ok := services[method+path]; ok {
+				return s, nil
+			}
+			if s, ok := services["*"+path]; ok {
+				return s, nil
+			}
+		}
 	}
 
-	// 2. WebSocket 匹配
+	// 3. 匹配 WebSocket
 	websocketServicesLock.RLock()
 	defer websocketServicesLock.RUnlock()
-	if ws, exists := websocketServices[path]; exists {
-		return nil, ws
+	for _, h := range hosts {
+		if services, exists := websocketServices[h]; exists {
+			if ws, ok := services[path]; ok {
+				return nil, ws
+			}
+		}
 	}
 
-	// 3. 正则匹配
-	for i := len(regexWebServices) - 1; i >= 0; i-- {
-		s := regexWebServices[i]
-		if s.method != "" && s.method != method {
-			continue
-		}
-		if s.pathMatcher != nil && s.pathMatcher.MatchString(path) {
-			return s, nil
+	// 4. 正则匹配
+	for _, h := range hosts {
+		if services, exists := regexWebServices[h]; exists {
+			for i := len(services) - 1; i >= 0; i-- {
+				s := services[i]
+				if s.method != "*" && s.method != method {
+					continue
+				}
+				if s.pathMatcher != nil && s.pathMatcher.MatchString(path) {
+					return s, nil
+				}
+			}
 		}
 	}
 
@@ -166,7 +233,7 @@ func parseRequestArgs(request *Request, args map[string]any) {
 			body, _ := io.ReadAll(request.Body)
 			_ = request.Body.Close()
 			if len(body) > 0 {
-				_ = json.Unmarshal(body, &args)
+				_ = cast.UnmarshalJSON(body, &args)
 			}
 		} else {
 			_ = request.ParseForm()
@@ -198,8 +265,8 @@ func doWebService(service *webServiceType, request *Request, response *Response,
 		return result
 	}
 
-	params := make([]reflect.Value, service.parmsNum)
-	for i := 0; i < service.parmsNum; i++ {
+	params := make([]reflect.Value, service.paramsNum)
+	for i := 0; i < service.paramsNum; i++ {
 		t := service.funcType.In(i)
 		switch i {
 		case service.requestIndex:
@@ -288,7 +355,7 @@ func handleClientKeys(request *Request, response *Response) {
 				})
 			}
 		}
-		request.Header.Set(standard.DiscoverHeaderSessionId, sessionId)
+		request.Header.Set(discover.HeaderSessionID, sessionId)
 		response.Header().Set(usedSessionIdKey, sessionId)
 	}
 
@@ -312,7 +379,7 @@ func handleClientKeys(request *Request, response *Response) {
 				})
 			}
 		}
-		request.Header.Set(standard.DiscoverHeaderDeviceId, deviceId)
+		request.Header.Set(discover.HeaderDeviceID, deviceId)
 		response.Header().Set(usedDeviceIdKey, deviceId)
 	}
 }

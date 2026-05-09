@@ -9,11 +9,10 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 )
 
-type proxyInfo struct {
+type proxyType struct {
 	matcher   *regexp.Regexp
 	authLevel int
 	fromPath  string
@@ -21,39 +20,32 @@ type proxyInfo struct {
 	toPath    string
 }
 
-var (
-	proxies      = make(map[string]*proxyInfo)
-	regexProxies = make([]*proxyInfo, 0)
-	proxyBy      func(*Request) (int, *string, *string, map[string]string)
-	proxiesLock  = sync.RWMutex{}
-
-	httpClientPool *gohttp.Client
-)
-
-// Proxy 注册代理规则
-func Proxy(authLevel int, path string, toApp, toPath string) {
-	p := &proxyInfo{authLevel: authLevel, fromPath: path, toApp: toApp, toPath: toPath}
+func (hc *HostContext) Proxy(authLevel int, path string, toApp, toPath string) *HostContext {
+	p := &proxyType{authLevel: authLevel, fromPath: path, toApp: toApp, toPath: toPath}
 	if strings.Contains(path, "(") {
 		matcher, err := regexp.Compile("^" + path + "$")
 		if err == nil {
 			p.matcher = matcher
-			proxiesLock.Lock()
-			regexProxies = append(regexProxies, p)
-			proxiesLock.Unlock()
 		}
-	} else {
-		proxiesLock.Lock()
-		proxies[path] = p
-		proxiesLock.Unlock()
 	}
+
+	hostPoliciesLock.Lock()
+	defer hostPoliciesLock.Unlock()
+	hostProxies[hc.host] = append(hostProxies[hc.host], p)
+	return hc
 }
 
-// SetProxyBy 设置动态代理函数
-func SetProxyBy(by func(request *Request) (authLevel int, toApp, toPath *string, headers map[string]string)) {
-	proxyBy = by
-}
+var httpClientPool *gohttp.Client
 
-func findProxy(request *Request) (int, *string, *string) {
+func findProxy(request *Request) (int, *string, *string, string) {
+	host := request.Host
+	hostOnly, port, _ := strings.Cut(host, ":")
+	hosts := []string{host}
+	if port != "" {
+		hosts = append(hosts, hostOnly, ":"+port)
+	}
+	hosts = append(hosts, "*")
+
 	requestPath := request.RequestURI
 	queryString := ""
 	if pos := strings.Index(requestPath, "?"); pos != -1 {
@@ -61,40 +53,42 @@ func findProxy(request *Request) (int, *string, *string) {
 		requestPath = requestPath[:pos]
 	}
 
-	proxiesLock.RLock()
-	defer proxiesLock.RUnlock()
+	hostPoliciesLock.RLock()
+	defer hostPoliciesLock.RUnlock()
 
-	if pi, ok := proxies[requestPath]; ok {
-		toPath := pi.toPath + queryString
-		return pi.authLevel, &pi.toApp, &toPath
-	}
+	for _, h := range hosts {
+		proxies, exists := hostProxies[h]
+		if !exists {
+			continue
+		}
 
-	for _, pi := range regexProxies {
-		if pi.matcher != nil {
-			finds := pi.matcher.FindAllStringSubmatch(requestPath, 1)
-			if len(finds) > 0 {
-				toApp := pi.toApp
-				toPath := pi.toPath
-				for i, part := range finds[0] {
-					toApp = strings.ReplaceAll(toApp, fmt.Sprintf("$%d", i), part)
-					toPath = strings.ReplaceAll(toPath, fmt.Sprintf("$%d", i), part)
+		for _, pi := range proxies {
+			if pi.matcher == nil {
+				if pi.fromPath == requestPath {
+					toPath := pi.toPath + queryString
+					return pi.authLevel, &pi.toApp, &toPath, h
 				}
-				toPath += queryString
-				return pi.authLevel, &toApp, &toPath
+			} else {
+				finds := pi.matcher.FindAllStringSubmatch(requestPath, 1)
+				if len(finds) > 0 {
+					toApp := pi.toApp
+					toPath := pi.toPath
+					for i, part := range finds[0] {
+						toApp = strings.ReplaceAll(toApp, fmt.Sprintf("$%d", i), part)
+						toPath = strings.ReplaceAll(toPath, fmt.Sprintf("$%d", i), part)
+					}
+					toPath += queryString
+					return pi.authLevel, &toApp, &toPath, h
+				}
 			}
 		}
 	}
 
-	return 0, nil, nil
+	return 0, nil, nil, ""
 }
 
 func processProxy(request *Request, response *Response, logger *log.Logger) bool {
-	authLevel, proxyToApp, proxyToPath := findProxy(request)
-	var proxyHeaders map[string]string
-
-	if proxyBy != nil && (proxyToApp == nil || proxyToPath == nil || *proxyToApp == "" || *proxyToPath == "") {
-		authLevel, proxyToApp, proxyToPath, proxyHeaders = proxyBy(request)
-	}
+	authLevel, proxyToApp, proxyToPath, foundHost := findProxy(request)
 
 	if proxyToApp == nil || proxyToPath == nil || *proxyToApp == "" || *proxyToPath == "" {
 		return false
@@ -112,25 +106,20 @@ func processProxy(request *Request, response *Response, logger *log.Logger) bool
 
 	app := *proxyToApp
 	path := *proxyToPath
-
-	// 构建自定义头部
-	headerArgs := make([]string, 0)
-	for k, v := range proxyHeaders {
-		headerArgs = append(headerArgs, k, v)
-	}
+	logger.Info("proxy", "app", app, "path", path, "host", foundHost)
 
 	if strings.Contains(app, "://") {
 		// 直接 URL 代理
 		if httpClientPool == nil {
 			httpClientPool = gohttp.NewClient(time.Duration(Config.RedirectTimeout) * time.Millisecond)
 		}
-		res := httpClientPool.ManualDoByRequest(request.Request, request.Method, app+path, request.Body, headerArgs...)
+		res := httpClientPool.ManualDoByRequest(request.Request, request.Method, app+path, request.Body)
 		copyResponse(res, response, logger)
 	} else {
 		// Discover 代理
 		caller := discover.NewCaller(request.Request, logger)
 		caller.NoBody = true
-		res, _ := caller.ManualDoWithNode(request.Method, app, "", path, request.Body, headerArgs...)
+		res, _ := caller.ManualDoWithNode(request.Method, app, "", path, request.Body)
 		copyResponse(res, response, logger)
 	}
 

@@ -2,16 +2,17 @@ package service
 
 import (
 	"apigo.cc/go/cast"
+	"apigo.cc/go/file"
 	"io"
 	"net/http"
-	"os"
 )
 
 // Response 封装 http.ResponseWriter
 type Response struct {
 	Id            string
 	Writer        http.ResponseWriter
-	status        int
+	Code          int
+	body          []byte
 	outLen        int
 	changed       bool
 	headerWritten bool
@@ -24,7 +25,7 @@ type Response struct {
 func NewResponse(writer http.ResponseWriter) *Response {
 	return &Response{
 		Writer: writer,
-		status: http.StatusOK,
+		Code:   http.StatusOK,
 	}
 }
 
@@ -42,6 +43,9 @@ func (r *Response) Write(bytes []byte) (int, error) {
 	r.checkWriteHeader()
 	r.changed = true
 	r.outLen += len(bytes)
+	if r.Code != http.StatusOK && len(r.body) < 4096 {
+		r.body = append(r.body, bytes...)
+	}
 	if r.ProxyHeader != nil {
 		r.copyProxyHeader()
 	}
@@ -56,8 +60,8 @@ func (r *Response) WriteString(s string) (int, error) {
 // WriteHeader 设置响应状态码
 func (r *Response) WriteHeader(code int) {
 	r.changed = true
-	r.status = code
-	if r.ProxyHeader != nil && (r.status == http.StatusBadGateway || r.status == http.StatusServiceUnavailable || r.status == http.StatusGatewayTimeout) {
+	r.Code = code
+	if r.ProxyHeader != nil && (r.Code == http.StatusBadGateway || r.Code == http.StatusServiceUnavailable || r.Code == http.StatusGatewayTimeout) {
 		return
 	}
 	if r.ProxyHeader != nil {
@@ -68,8 +72,8 @@ func (r *Response) WriteHeader(code int) {
 func (r *Response) checkWriteHeader() {
 	if !r.headerWritten {
 		r.headerWritten = true
-		if r.status != http.StatusOK {
-			r.Writer.WriteHeader(r.status)
+		if r.Code != http.StatusOK {
+			r.Writer.WriteHeader(r.Code)
 		}
 	}
 }
@@ -94,7 +98,7 @@ func (r *Response) Flush() {
 
 // GetStatusCode 获取当前状态码
 func (r *Response) GetStatusCode() int {
-	return r.status
+	return r.Code
 }
 
 // DontLog200 标记不记录 200 状态码的日志
@@ -111,10 +115,8 @@ func (r *Response) Location(location string) {
 // SendFile 发送文件
 func (r *Response) SendFile(contentType, filename string) {
 	r.Header().Set("Content-Type", contentType)
-	// TODO: Integrate memory file support if needed
-	if fd, err := os.Open(filename); err == nil {
-		defer fd.Close()
-		_, _ = io.Copy(r, fd)
+	if data, err := file.ReadBytes(filename); err == nil {
+		_, _ = r.Write(data)
 	}
 }
 

@@ -9,18 +9,18 @@ import (
 
 func TestWebSocketService(t *testing.T) {
 	// 注册 WebSocket 服务
-	RegisterWebsocket(0, "/ws", func(conn *websocket.Conn) {
+	Host("*").WebSocket("/ws", func(conn *websocket.Conn) {
 		for {
-			var msg Map
+			var msg map[string]any
 			if err := conn.ReadJSON(&msg); err != nil {
 				break
 			}
-			_ = conn.WriteJSON(Map{"reply": msg["msg"]})
+			_ = conn.WriteJSON(map[string]any{"reply": msg["msg"]})
 		}
-	}, "test websocket")
+	}).Auth(0).Memo("test websocket")
 
 	// 启动测试服务器
-	server := httptest.NewServer(&routeHandler{})
+	server := httptest.NewServer(&RouteHandler{})
 	defer server.Close()
 
 	// 建立连接
@@ -32,13 +32,13 @@ func TestWebSocketService(t *testing.T) {
 	defer conn.Close()
 
 	// 发送消息
-	msg := Map{"action": "echo", "msg": "hello"}
+	msg := map[string]any{"action": "echo", "msg": "hello"}
 	if err := conn.WriteJSON(msg); err != nil {
 		t.Fatalf("WriteJSON failed: %v", err)
 	}
 
 	// 接收响应
-	var reply Map
+	var reply map[string]any
 	if err := conn.ReadJSON(&reply); err != nil {
 		t.Fatalf("ReadJSON failed: %v", err)
 	}

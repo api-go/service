@@ -92,7 +92,7 @@ func VerifyStruct(in any, logger *log.Logger) (ok bool, field string) {
 		keyTag := ft.Tag.Get("verifyKey")
 		if tag != "" || keyTag != "" {
 			var err error
-			ok, f, err := _verifyValue(fv, tag, keyTag, logger)
+			ok, f, err := verifyValue(fv, tag, keyTag, logger)
 			if !ok {
 				if f == "" {
 					f = cast.GetLowerName(ft.Name)
@@ -111,13 +111,13 @@ func VerifyStruct(in any, logger *log.Logger) (ok bool, field string) {
 	return true, ""
 }
 
-func _verifyValue(in reflect.Value, setting, keySetting string, logger *log.Logger) (bool, string, error) {
+func verifyValue(in reflect.Value, setting, keySetting string, logger *log.Logger) (bool, string, error) {
 	t := in.Type()
 	// 处理切片 (非 byte 切片)
 	if t.Kind() == reflect.Slice && t.Elem().Kind() != reflect.Uint8 {
 		if setting != "" {
 			for i := 0; i < in.Len(); i++ {
-				if ok, f, err := _verifyValue(in.Index(i), setting, "", logger); !ok {
+				if ok, f, err := verifyValue(in.Index(i), setting, "", logger); !ok {
 					return false, f, err
 				}
 			}
@@ -129,12 +129,12 @@ func _verifyValue(in reflect.Value, setting, keySetting string, logger *log.Logg
 	if t.Kind() == reflect.Map {
 		for _, k := range in.MapKeys() {
 			if keySetting != "" {
-				if ok, _, err := _verifyValue(k, keySetting, "", logger); !ok {
+				if ok, _, err := verifyValue(k, keySetting, "", logger); !ok {
 					return false, "key", err
 				}
 			}
 			if setting != "" {
-				if ok, f, err := _verifyValue(in.MapIndex(k), setting, "", logger); !ok {
+				if ok, f, err := verifyValue(in.MapIndex(k), setting, "", logger); !ok {
 					return false, f, err
 				}
 			}

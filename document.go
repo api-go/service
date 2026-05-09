@@ -16,6 +16,7 @@ type Api struct {
 	In        any
 	Out       any
 	Memo      string
+	Host      string
 }
 
 //go:embed DocTpl.html
@@ -25,27 +26,29 @@ var defaultDocTpl string
 func MakeDocument() []Api {
 	out := make([]Api, 0)
 
-	// 1. Rewrite
-	rewritesLock.RLock()
-	for _, a := range rewrites {
-		out = append(out, Api{
-			Type: "Rewrite",
-			Path: a.fromPath + " -> " + a.toPath,
-		})
+	// 1. Rewrite & Proxy
+	hostPoliciesLock.RLock()
+	for host, rewrites := range hostRewrites {
+		for _, a := range rewrites {
+			out = append(out, Api{
+				Type: "Rewrite",
+				Host: host,
+				Path: a.fromPath + " -> " + a.toPath,
+			})
+		}
 	}
-	rewritesLock.RUnlock()
-
-	// 2. Proxy
-	proxiesLock.RLock()
-	for _, a := range proxies {
-		out = append(out, Api{
-			Type: "Proxy",
-			Path: a.fromPath + " -> " + a.toApp + ":" + a.toPath,
-		})
+	for host, proxies := range hostProxies {
+		for _, a := range proxies {
+			out = append(out, Api{
+				Type: "Proxy",
+				Host: host,
+				Path: a.fromPath + " -> " + a.toApp + ":" + a.toPath,
+			})
+		}
 	}
-	proxiesLock.RUnlock()
+	hostPoliciesLock.RUnlock()
 
-	// 3. Web Services
+	// 2. Web Services
 	webServicesLock.RLock()
 	for _, a := range webServicesList {
 		if a.options.NoDoc {
@@ -57,6 +60,7 @@ func MakeDocument() []Api {
 			AuthLevel: a.authLevel,
 			Method:    a.method,
 			Memo:      a.memo,
+			Host:      a.host,
 		}
 		if a.inType != nil {
 			api.In = getType(a.inType)
@@ -70,17 +74,18 @@ func MakeDocument() []Api {
 
 	// 4. WebSocket Services
 	websocketServicesLock.RLock()
-	for _, a := range websocketServices {
+	for _, ws := range websocketServicesList {
 		api := Api{
 			Type:      "WebSocket",
-			Path:      a.path,
-			AuthLevel: a.authLevel,
-			Memo:      a.memo,
+			Path:      ws.path,
+			AuthLevel: ws.authLevel,
+			Memo:      ws.memo,
+			Host:      ws.host,
 		}
-		if a.handlerType != nil && a.handlerType.NumIn() > 0 {
+		if ws.funcType != nil && ws.funcType.NumIn() > 0 {
 			// Find struct in
-			for i := 0; i < a.handlerType.NumIn(); i++ {
-				t := a.handlerType.In(i)
+			for i := 0; i < ws.funcType.NumIn(); i++ {
+				t := ws.funcType.In(i)
 				if t.Kind() == reflect.Struct {
 					api.In = getType(t)
 					break
@@ -113,11 +118,11 @@ func getType(t reflect.Type) any {
 
 	switch t.Kind() {
 	case reflect.Struct:
-		outs := Map{}
+		outs := make(map[string]any)
 		for i := 0; i < t.NumField(); i++ {
 			f := t.Field(i)
 			if f.Anonymous {
-				if subMap, ok := getType(f.Type).(Map); ok {
+				if subMap, ok := getType(f.Type).(map[string]any); ok {
 					for k, v := range subMap {
 						outs[k] = v
 					}
