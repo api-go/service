@@ -4,6 +4,10 @@ import (
 	"apigo.cc/go/id"
 	"apigo.cc/go/log"
 	"apigo.cc/go/redis"
+	"net"
+	"os"
+	"path"
+	"runtime/debug"
 	"sync"
 )
 
@@ -11,6 +15,45 @@ var (
 	idMaker     IDMakerInterface
 	idMakerLock sync.Mutex
 )
+
+// GetDefaultName 获取默认应用名称
+func GetDefaultName() string {
+	name := os.Getenv("DISCOVER_APP")
+	if name == "" {
+		name = os.Getenv("discover_app")
+	}
+	if name == "" {
+		if info, ok := debug.ReadBuildInfo(); ok && info.Path != "" && info.Path != "command-line-arguments" {
+			name = path.Base(info.Path)
+		}
+	}
+	if name == "" {
+		name = path.Base(os.Args[0])
+	}
+	return name
+}
+
+// GetServerIp 获取真实局域网 IP (UDP 8.8.8.8 伪拨号法)
+func GetServerIp() string {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err == nil {
+		localAddr := conn.LocalAddr().(*net.UDPAddr)
+		_ = conn.Close()
+		return localAddr.IP.String()
+	}
+
+	addrs, err := net.InterfaceAddrs()
+	if err == nil {
+		for _, a := range addrs {
+			if an, ok := a.(*net.IPNet); ok {
+				if an.IP.IsGlobalUnicast() {
+					return an.IP.To4().String()
+				}
+			}
+		}
+	}
+	return "127.0.0.1"
+}
 
 // IDMakerInterface ID 生成器接口
 type IDMakerInterface interface {

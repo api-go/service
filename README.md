@@ -4,6 +4,8 @@
 
 ## 核心特性
 - **极致精简**: 剥离非核心组件（如 Starter, Task, 业务 Result 定义），保持底座纯净。
+- **零配置启动**: 默认监听随机端口并启用 `h2c` 协议，自动完成 `discover` 注册，实现真正的 "Zero-Config" 微服务。
+- **智能探测**: 自动识别应用名称 (`ReadBuildInfo`) 与局域网 IP，消除环境摩擦。
 - **路由反射**: 自动解析函数参数，支持 `*Request`, `*Response`, `*log.Logger` 及自定义结构体自动注入。
 - **自动校验**: 集成 `verify` 引擎，通过 Struct Tag 实现入参合法性自动检查。
 - **功能闭环**: 内置静态文件服务、基础 WebSocket 注册、URL 重写、反向代理（对接 Discover）。

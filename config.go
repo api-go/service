@@ -42,6 +42,7 @@ type ServiceConfig struct {
 	SessionWithoutCookie          bool                // Session 禁用 Cookie
 	DeviceWithoutCookie           bool                // 设备ID禁用 Cookie
 	IdServer                      string              // Redis 服务器连接 (用于全局唯一 ID 生成)
+	DiscoverApp                   string              // 强制指定 Discover 应用名称，如果不指定且 Listen 为空则自动获取并注册
 	KeepKeyCase                   bool                // 是否保持 Key 的首字母大小写
 	IndexFiles                    []string            // 静态文件索引文件
 	IndexDir                      bool                // 访问目录时显示文件列表

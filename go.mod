@@ -13,4 +13,5 @@ require (
 	apigo.cc/go/redis v1.0.5
 	apigo.cc/go/timer v1.0.6
 	github.com/gorilla/websocket v1.5.3
+	golang.org/x/net v0.53.0
 )

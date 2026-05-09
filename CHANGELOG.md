@@ -1,5 +1,16 @@
 # CHANGELOG - go/service
 
+## v1.0.3 (2026-05-09)
+### Added
+- **Zero-Config Microservices**: 实现智能启动逻辑。当 `Listen` 为空时，自动开启随机端口并使用 `h2c` 协议。
+- **Auto-Discover**: 自动集成 `go/discover`。当使用随机端口或配置了应用名时，自动完成服务注册。
+- **Smart Detection**: 内置应用名自动识别 (`debug.ReadBuildInfo`) 与服务 IP 自动探测 (UDP 伪拨号法)。
+- **H2C Server**: 原生支持 HTTP/2 Cleartext (h2c) 服务端协议，提升微服务间通信性能。
+
+### Changed
+- **Infrastructure Alignment**: `go.mod` 引入 `golang.org/x/net` 以支持 H2C。
+- **IO Security**: 持续优化 `go/file` 在静态文件服务中的应用。
+
 ## v1.0.2 (2026-05-09)
 ### Changed
 - **Infrastructure Alignment**: `go.mod` 升级 `go/config` 至 `v1.0.7`，`go/http` 至 `v1.0.10`。

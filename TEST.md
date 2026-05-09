@@ -20,6 +20,9 @@
 - [x] `TestNestedVerify`: 嵌套结构校验
 - [x] `TestCustomVerify`: 自定义校验函数
 - [x] `TestWebSocketService`: WebSocket 注册
+- [x] `TestGetDefaultName`: 自动应用名识别
+- [x] `TestGetServerIp`: 自动 IP 探测
+- [x] `TestSmartStartup`: 零配置智能启动与 Discover 注册
 
 ## 基础设施对齐验证
 - [x] 成功集成 `apigo.cc/go/cast` 用于参数解析与类型强转。
@@ -27,3 +30,4 @@
 - [x] 成功集成 `apigo.cc/go/log` 并实现完整的 Request 日志记录。
 - [x] 强制集成 `apigo.cc/go/file` 替代原生 `os`，全面支持内存虚拟文件系统。
 - [x] 成功集成 `apigo.cc/go/id` 与 `go/redis` 实现分布式有序 ID。
+- [x] 成功集成 `apigo.cc/go/discover` 并支持 H2C 协议的零配置自动注册。
