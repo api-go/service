@@ -1,5 +1,13 @@
 # CHANGELOG - go/service
 
+## v1.0.4 (2026-05-10)
+- **Log Optimization**: Implemented `NoLogGets`, `NoLogHeaders`, `LogInputArrayNum`, `LogInputFieldSize`, and other fine-grained logging filters.
+- **Static Log**: Added automatic logging for static file access.
+- **Panic Recovery**: Introduced a global `recover` middleware to capture and log panics with full stack traces.
+- **Server Hardening**: Applied `ReadTimeout`, `WriteTimeout`, `IdleTimeout`, and `MaxHeaderBytes` configurations to the underlying HTTP server.
+- **Service Alignment**: Populated `Config.App` and improved `serverId` generation for better traceability.
+- **Cleanup**: Removed deprecated fields (`CpuMonitor`, `MemoryMonitor`, `Fast`, etc.) and unused logging methods (`logTask`, `logMonitor`).
+
 ## v1.0.3 (2026-05-09)
 ### Added
 - **Zero-Config Microservices**: 实现智能启动逻辑。当 `Listen` 为空时，自动开启随机端口并使用 `h2c` 协议。

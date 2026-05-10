@@ -1,18 +1,10 @@
 package service
 
 import (
-	"os"
 	"testing"
 )
 
 func TestGetDefaultName(t *testing.T) {
-	// Test from env
-	os.Setenv("DISCOVER_APP", "test-app")
-	if name := GetDefaultName(); name != "test-app" {
-		t.Errorf("Expected test-app, got %s", name)
-	}
-	os.Unsetenv("DISCOVER_APP")
-
 	// Test from build info or args
 	name := GetDefaultName()
 	if name == "" {

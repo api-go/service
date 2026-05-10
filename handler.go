@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"reflect"
+	"runtime/debug"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -24,7 +25,7 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	tracker := timer.Start()
 	requestId := r.Header.Get(discover.HeaderRequestID)
 	if requestId == "" {
-		requestId = MakeId(12)
+		requestId = IDMaker.Get10Bytes14MPerSecond()
 		r.Header.Set(discover.HeaderRequestID, requestId)
 	}
 
@@ -32,24 +33,104 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	request.Id = requestId
 	response := NewResponse(w)
 	response.Id = requestId
-	defer response.checkWriteHeader()
+	requestLogger := log.New(requestId)
+
+	// 0. 延迟处理日志与状态检查
+	var s *webServiceType
+	var authLevel int
+	var priority int
+	var args = make(map[string]any)
+
+	defer func() {
+		// 捕捉 Panic
+		if err := recover(); err != nil {
+			requestLogger.Error("panic recovered", "error", err, "stack", string(debug.Stack()))
+			if !response.changed {
+				response.WriteHeader(http.StatusInternalServerError)
+				outputResult(response, "internal server error")
+			}
+		}
+
+		response.checkWriteHeader()
+
+		// 记录日志
+		if (s == nil || !s.options.NoLog200 || response.Code != 200) &&
+			!(Config.NoLogGets && r.Method == http.MethodGet && response.Code == 200) {
+
+			scheme := "http"
+			if r.TLS != nil {
+				scheme = "https"
+			}
+			usedTime := float32(tracker.Stop().Seconds())
+
+			// 过滤请求头
+			reqHeaders := make(map[string]string)
+			noLogHeaders := strings.Split(Config.NoLogHeaders, ",")
+			for k, v := range r.Header {
+				skip := false
+				for _, nl := range noLogHeaders {
+					if nl != "" && strings.EqualFold(k, strings.TrimSpace(nl)) {
+						skip = true
+						break
+					}
+				}
+				if !skip {
+					reqHeaders[k] = strings.Join(v, ", ")
+				}
+			}
+
+			// 过滤响应头
+			respHeaders := make(map[string]string)
+			for k, v := range response.Header() {
+				respHeaders[k] = strings.Join(v, ", ")
+			}
+
+			// 处理响应内容截断
+			var respData any
+			if response.Code != 200 {
+				if len(response.body) < 1024 {
+					respData = string(response.body)
+				} else {
+					respData = string(response.body[:1024]) + "..."
+				}
+			} else if Config.NoLogOutputFields != "" {
+				// 简单的字段过滤逻辑 (如果是 JSON 对象)
+				// 这里可以根据 Config.NoLogOutputFields, LogOutputArrayNum, LogOutputFieldSize 进行更复杂的处理
+				// 暂按字符串截断处理
+				if len(response.body) > 0 {
+					respData = "[content hidden or truncated]"
+				}
+			}
+
+			logRequest(
+				requestLogger,
+				r.Method, r.URL.Path, hostOnly(r.Host), scheme, r.Proto,
+				request.ClientIp(), serverId, Config.App, "", // node 暂无
+				r.Header.Get(discover.HeaderFromApp), r.Header.Get(discover.HeaderFromNode),
+				"", request.DeviceId(), request.SessionId(), requestId,
+				request.Header.Get(discover.HeaderClientAppName), request.Header.Get(discover.HeaderClientAppVersion),
+				authLevel, priority,
+				reqHeaders, args,
+				response.Code, usedTime,
+				respHeaders, cast.String(respData), uint(len(response.body)),
+			)
+		}
+	}()
 
 	// 处理 SessionId 和 DeviceId
 	handleClientKeys(request, response)
 
-	requestLogger := log.New(requestId)
-
-	// 0. 处理重写 (Rewrite)
+	// 1. 处理重写 (Rewrite)
 	if processRewrite(request, response, requestLogger) {
 		return
 	}
 
-	// 处理代理 (Proxy)
+	// 2. 处理代理 (Proxy)
 	if processProxy(request, response, requestLogger) {
 		return
 	}
 
-	// 1. 路由匹配
+	// 3. 路由匹配
 	path := r.URL.Path
 	host := r.Host
 
@@ -58,13 +139,13 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s, ws := findService(r.Method, host, path)
+	var ws *websocketServiceType
+	s, ws = findService(r.Method, host, path)
 
-	// 2. 参数解析 (Form & Body)
-	args := make(map[string]any)
+	// 4. 参数解析 (Form & Body)
 	parseRequestArgs(request, args)
 
-	// 3. 前置过滤器
+	// 5. 前置过滤器
 	var result any
 	for _, filter := range inFilters {
 		result = filter(&args, request, response, requestLogger)
@@ -73,14 +154,12 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	authLevel := 0
-	priority := 0
 	if s != nil {
 		authLevel = s.authLevel
 		priority = s.options.Priority
 	}
 
-	// 4. 处理业务执行 (WS 或 Web)
+	// 6. 处理业务执行 (WS 或 Web)
 	if result == nil {
 		if ws != nil {
 			authLevel = ws.authLevel
@@ -101,11 +180,11 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if s == nil && result == nil {
+	if s == nil && result == nil && !response.changed {
 		response.WriteHeader(http.StatusNotFound)
 	}
 
-	// 5. 后置过滤器
+	// 7. 后置过滤器
 	for _, filter := range outFilters {
 		newResult, done := filter(args, request, response, result, requestLogger)
 		if newResult != nil {
@@ -116,50 +195,13 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 6. 输出结果
+	// 8. 输出结果
 	outputResult(response, result)
+}
 
-	// 7. 记录日志
-	if s == nil || !s.options.NoLog200 || response.Code != 200 {
-		scheme := "http"
-		if r.TLS != nil {
-			scheme = "https"
-		}
-		usedTime := float32(tracker.Stop().Seconds())
-
-		// 获取一些 Header 信息
-		reqHeaders := make(map[string]string)
-		for k, v := range r.Header {
-			reqHeaders[k] = strings.Join(v, ", ")
-		}
-		respHeaders := make(map[string]string)
-		for k, v := range response.Header() {
-			respHeaders[k] = strings.Join(v, ", ")
-		}
-
-		// 限制记录的 Body 长度
-		respData := ""
-		if response.Code != 200 {
-			if len(response.body) < 1024 {
-				respData = string(response.body)
-			} else {
-				respData = string(response.body[:1024]) + "..."
-			}
-		}
-
-		logRequest(
-			requestLogger,
-			r.Method, path, host, scheme, r.Proto,
-			request.ClientIp(), serverId, "", "", // app, node 暂无
-			r.Header.Get(discover.HeaderFromApp), r.Header.Get(discover.HeaderFromNode),
-			"", request.DeviceId(), request.SessionId(), requestId,
-			request.Header.Get(discover.HeaderClientAppName), request.Header.Get(discover.HeaderClientAppVersion),
-			authLevel, priority,
-			reqHeaders, args,
-			response.Code, usedTime,
-			respHeaders, respData, uint(len(response.body)),
-		)
-	}
+func hostOnly(host string) string {
+	h, _, _ := strings.Cut(host, ":")
+	return h
 }
 
 func findService(method, host, path string) (*webServiceType, *websocketServiceType) {
@@ -344,7 +386,7 @@ func handleClientKeys(request *Request, response *Response) {
 			if sessionIdMaker != nil {
 				sessionId = sessionIdMaker()
 			} else {
-				sessionId = MakeId(14)
+				sessionId = IDMaker.Get11Bytes900MPerSecond()
 			}
 			if !Config.SessionWithoutCookie {
 				http.SetCookie(response.Writer, &http.Cookie{
@@ -368,7 +410,7 @@ func handleClientKeys(request *Request, response *Response) {
 			}
 		}
 		if deviceId == "" {
-			deviceId = MakeId(14)
+			deviceId = IDMaker.Get11Bytes900MPerSecond()
 			if !Config.DeviceWithoutCookie {
 				http.SetCookie(response.Writer, &http.Cookie{
 					Name:     usedDeviceIdKey,

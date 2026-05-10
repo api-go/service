@@ -65,3 +65,19 @@ func TestServeHTTP_VerifyFailed(t *testing.T) {
 		t.Errorf("Expected status 400, got %d", w.Code)
 	}
 }
+
+func TestServeHTTP_Panic(t *testing.T) {
+	Host("*").GET("/panic", func() string {
+		panic("intentional panic")
+	})
+
+	rh := &RouteHandler{}
+	req := httptest.NewRequest("GET", "/panic", nil)
+	w := httptest.NewRecorder()
+
+	rh.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("Expected status 500, got %d", w.Code)
+	}
+}

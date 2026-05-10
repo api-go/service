@@ -19,9 +19,6 @@ type Api struct {
 	Host      string
 }
 
-//go:embed DocTpl.html
-var defaultDocTpl string
-
 // MakeDocument 生成文档数据
 func MakeDocument() []Api {
 	out := make([]Api, 0)

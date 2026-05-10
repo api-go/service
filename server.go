@@ -3,6 +3,7 @@ package service
 import (
 	"apigo.cc/go/discover"
 	"apigo.cc/go/log"
+	"apigo.cc/go/redis"
 	"apigo.cc/go/safe"
 	"context"
 	"fmt"
@@ -70,12 +71,23 @@ func (as *AsyncServer) start() {
 	}
 
 	// 检查是否需要启动服务发现
-	appName := Config.App
-	if appName == "" {
-		appName = GetDefaultName()
+	if Config.App == "" {
+		Config.App = GetDefaultName()
 	}
+	appName := Config.App
 	if appName != "" || Config.Register != "" {
 		as.useDiscover = true
+	}
+
+	// 初始化服务器唯一标识 (8位，物理上限 3,844/s)
+	serverId = IDMaker.Get8Bytes4KPerSecond()
+
+	// 初始化分布式 ID 生成器
+	if Config.IdServer != "" {
+		rd := redis.GetRedis(Config.IdServer, log.New(serverId))
+		if rd.Error == nil {
+			IDMaker = redis.NewIDMaker(rd)
+		}
 	}
 
 	listener, err := net.Listen("tcp", addr)
@@ -101,7 +113,12 @@ func (as *AsyncServer) start() {
 	}
 
 	as.server = &http.Server{
-		Handler: handler,
+		Handler:           handler,
+		ReadTimeout:       time.Duration(Config.ReadTimeout) * time.Millisecond,
+		ReadHeaderTimeout: time.Duration(Config.ReadHeaderTimeout) * time.Millisecond,
+		WriteTimeout:      time.Duration(Config.WriteTimeout) * time.Millisecond,
+		IdleTimeout:       time.Duration(Config.IdleTimeout) * time.Millisecond,
+		MaxHeaderBytes:    Config.MaxHeaderBytes,
 	}
 
 	// 启动服务发现
