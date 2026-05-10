@@ -1,5 +1,14 @@
 # CHANGELOG - go/service
 
+## v1.3.1 (2026-05-10)
+- **Logging Refactor (Callback Pattern)**: 引入 `LogRequest` 闭环式回调封装，自动处理日志级别检查、对象池获取及元数据填充，消除 20+ 参数带来的维护压力。
+- **Graceful Shutdown**: `ServiceConfig` 新增 `StopTimeout` 字段，支持通过配置灵活管控服务优雅退出的超时时间（默认 5s）。
+- **Panic Recovery**: 增强 `handler.go` 中的 `recover` 逻辑，在发生 Panic 时自动记录 `requestId` 和 `path`，大幅提升故障定位效率。
+- **Infrastructure Alignment**: 全量回退并对齐 Go 版本至 `1.25.0`；同步更新 `handler.go` 以适配新的日志调用模式。
+
+## v1.0.5 (2026-05-10)
+- **Wait**: This version was a temporary placeholder. See v1.3.1 for the actual release.
+
 ## v1.0.4 (2026-05-10)
 - **Log Optimization**: Implemented `NoLogGets`, `NoLogHeaders`, `LogInputArrayNum`, `LogInputFieldSize`, and other fine-grained logging filters.
 - **Static Log**: Added automatic logging for static file access.

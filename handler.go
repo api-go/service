@@ -44,7 +44,7 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		// 捕捉 Panic
 		if err := recover(); err != nil {
-			requestLogger.Error("panic recovered", "error", err, "stack", string(debug.Stack()))
+			requestLogger.Error("panic recovered", "requestId", requestId, "path", r.URL.Path, "error", err, "stack", string(debug.Stack()))
 			if !response.changed {
 				response.WriteHeader(http.StatusInternalServerError)
 				outputResult(response, "internal server error")
@@ -102,18 +102,31 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 
-			logRequest(
-				requestLogger,
-				r.Method, r.URL.Path, hostOnly(r.Host), scheme, r.Proto,
-				request.ClientIp(), serverId, Config.App, "", // node 暂无
-				r.Header.Get(discover.HeaderFromApp), r.Header.Get(discover.HeaderFromNode),
-				"", request.DeviceId(), request.SessionId(), requestId,
-				request.Header.Get(discover.HeaderClientAppName), request.Header.Get(discover.HeaderClientAppVersion),
-				authLevel, priority,
-				reqHeaders, args,
-				response.Code, usedTime,
-				respHeaders, cast.String(respData), uint(len(response.body)),
-			)
+			LogRequest(requestLogger, func(entry *RequestLog) {
+				entry.Method = r.Method
+				entry.Path = r.URL.Path
+				entry.Host = hostOnly(r.Host)
+				entry.Scheme = scheme
+				entry.Proto = r.Proto
+				entry.ClientIp = request.ClientIp()
+				entry.ServerId = serverId
+				entry.App = Config.App
+				entry.FromApp = r.Header.Get(discover.HeaderFromApp)
+				entry.FromNode = r.Header.Get(discover.HeaderFromNode)
+				entry.DeviceId = request.DeviceId()
+				entry.SessionId = request.SessionId()
+				entry.ClientAppName = r.Header.Get(discover.HeaderClientAppName)
+				entry.ClientAppVersion = r.Header.Get(discover.HeaderClientAppVersion)
+				entry.AuthLevel = authLevel
+				entry.Priority = priority
+				entry.RequestHeaders = reqHeaders
+				entry.RequestData = args
+				entry.ResponseCode = response.Code
+				entry.UsedTime = usedTime
+				entry.ResponseHeaders = respHeaders
+				entry.ResponseData = respData
+				entry.ResponseDataLength = uint(len(response.body))
+			})
 		}
 	}()
 

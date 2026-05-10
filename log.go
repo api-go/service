@@ -1,7 +1,6 @@
 package service
 
 import (
-	"apigo.cc/go/cast"
 	"apigo.cc/go/log"
 )
 
@@ -71,24 +70,8 @@ func (l *RequestLog) Reset() {
 	l.ResponseData = nil
 }
 
-// RequestLog 调用封装
-func logRequest(
-	logger *log.Logger,
-	method, path, host, scheme, proto string,
-	clientIp, serverId, app, node string,
-	fromApp, fromNode string,
-	userId, deviceId, sessionId, requestId string,
-	clientAppName, clientAppVersion string,
-	authLevel, priority int,
-	reqHeaders map[string]string,
-	reqData map[string]any,
-	responseCode int,
-	usedTime float32,
-	respHeaders map[string]string,
-	responseData string,
-	responseDataLength uint,
-	extra ...any,
-) {
+// LogRequest 闭环式日志调用封装
+func LogRequest(logger *log.Logger, fn func(entry *RequestLog)) {
 	if !logger.CheckLevel(log.INFO) {
 		return
 	}
@@ -96,35 +79,10 @@ func logRequest(
 	entry := log.GetEntry[RequestLog]()
 	logger.FillBase(entry.GetBaseLog(), log.LogTypeRequest)
 
-	entry.Method = method
-	entry.Path = path
-	entry.Host = host
-	entry.Scheme = scheme
-	entry.Proto = proto
-	entry.ClientIp = clientIp
-	entry.ServerId = serverId
-	entry.App = app
-	entry.Node = node
-	entry.FromApp = fromApp
-	entry.FromNode = fromNode
-	entry.UserId = userId
-	entry.DeviceId = deviceId
-	entry.SessionId = sessionId
-	entry.ClientAppName = clientAppName
-	entry.ClientAppVersion = clientAppVersion
-	entry.AuthLevel = authLevel
-	entry.Priority = priority
-	entry.RequestHeaders = reqHeaders
-	entry.RequestData = reqData
-	entry.ResponseCode = responseCode
-	entry.UsedTime = usedTime
-	entry.ResponseHeaders = respHeaders
-	entry.ResponseData = responseData
-	entry.ResponseDataLength = responseDataLength
-	if len(extra) > 0 {
-		cast.FillMap(&entry.Extra, extra)
-	}
+	// 执行业务赋值逻辑
+	fn(entry)
 
+	// 统一发送
 	logger.Log(entry)
 }
 

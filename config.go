@@ -59,6 +59,7 @@ type ServiceConfig struct {
 	MaxReadFrameSize              uint32              // 单个帧的最大读取大小
 	MaxUploadBufferPerConnection  int32               // 每个连接的最大上传缓冲区大小
 	MaxUploadBufferPerStream      int32               // 每个流的最大上传缓冲区大小
+	StopTimeout                   int                 // 停止服务的超时时间 (ms)
 }
 
 var Config = ServiceConfig{}
