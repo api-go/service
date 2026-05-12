@@ -30,8 +30,17 @@ func (hc *HostContext) Proxy(authLevel int, path string, toApp, toPath string) *
 
 	hostPoliciesLock.Lock()
 	defer hostPoliciesLock.Unlock()
-	hostProxies[hc.host] = append(hostProxies[hc.host], p)
+	codeProxies[hc.host] = append(codeProxies[hc.host], p)
+	rebuildProxiesUnderLock(hc.host)
 	return hc
+}
+
+func rebuildProxiesUnderLock(host string) {
+	var combined []*proxyType
+	combined = append(combined, codeProxies[host]...)
+	combined = append(combined, fileProxies[host]...)
+	combined = append(combined, dynamicProxies[host]...)
+	hostProxies[host] = combined
 }
 
 var httpClientPool *gohttp.Client
@@ -171,8 +180,7 @@ type ProxyRule struct {
 	ToPath    string // 目标路径 (可含 $1 变量替换)
 }
 
-// ReplaceProxies 使用全量指针替换的方式 (Copy-on-Write) 无缝更新指定 host 的所有代理规则。
-// 该方法非常轻量，仅在赋值瞬间短暂持有写锁，不会阻塞任何并发请求，并且自动淘汰旧规则。
+// ReplaceProxies 使用全量指针替换的方式 (Copy-on-Write) 无缝更新指定 host 的动态代理规则，不影响通过代码或文件写入的固定规则。
 func ReplaceProxies(host string, rules []ProxyRule) {
 	newProxies := make([]*proxyType, 0, len(rules))
 	for _, r := range rules {
@@ -188,5 +196,6 @@ func ReplaceProxies(host string, rules []ProxyRule) {
 
 	hostPoliciesLock.Lock()
 	defer hostPoliciesLock.Unlock()
-	hostProxies[host] = newProxies
+	dynamicProxies[host] = newProxies
+	rebuildProxiesUnderLock(host)
 }

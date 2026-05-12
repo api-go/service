@@ -1,6 +1,7 @@
 package service
 
 import (
+	"apigo.cc/go/config"
 	"apigo.cc/go/discover"
 	"apigo.cc/go/log"
 	"apigo.cc/go/redis"
@@ -27,6 +28,7 @@ type WebServer struct {
 	Addr        string
 	useDiscover bool
 	discoverer  *discover.Discoverer
+	logger      *log.Logger
 }
 
 // NewWebServer 创建并返回一个新的 WebServer 实例
@@ -36,6 +38,11 @@ func NewWebServer() *WebServer {
 
 // Start 启动服务，实现 starter.Service 接口
 func (ws *WebServer) Start(ctx context.Context, logger *log.Logger) error {
+	if logger == nil {
+		logger = log.DefaultLogger
+	}
+	ws.logger = logger
+	
 	listenStr := Config.Listen
 	ws.useDiscover = false
 
@@ -182,7 +189,11 @@ func (ws *WebServer) Start(ctx context.Context, logger *log.Logger) error {
 
 // Stop 停止服务，实现 starter.Service 接口
 func (ws *WebServer) Stop(ctx context.Context) error {
-	log.DefaultLogger.Info("service stopping")
+	logger := ws.logger
+	if logger == nil {
+		logger = log.DefaultLogger
+	}
+	logger.Info("service stopping")
 	if ws.discoverer != nil {
 		ws.discoverer.Stop()
 	}
@@ -191,7 +202,7 @@ func (ws *WebServer) Stop(ctx context.Context) error {
 			return err
 		}
 	}
-	log.DefaultLogger.Info("service stopped")
+	logger.Info("service stopped")
 	return nil
 }
 
@@ -205,7 +216,23 @@ func (ws *WebServer) Health() error {
 
 // Reload 实现配置重新加载，实现 starter.Reloader 接口
 func (ws *WebServer) Reload() error {
-	log.DefaultLogger.Info("reloading configurations...")
+	logger := ws.logger
+	if logger == nil {
+		logger = log.DefaultLogger
+	}
+	logger.Info("reloading configurations...")
+	
+	// 重新加载配置文件中的策略
+	appName := Config.App
+	if appName == "" {
+		appName = GetDefaultName()
+	}
+	if err := config.Load(&Config, appName); err != nil {
+		logger.Error("failed to load config during reload", "error", err.Error())
+	}
+	ApplyConfig()
+	
+	// 触发业务挂载的 Hook
 	return triggerReload()
 }
 

@@ -14,6 +14,11 @@ import (
 var (
 	statics           = make(map[string]*string)
 	staticsByHost     = make(map[string]map[string]*string)
+	
+	codeStatics       = make(map[string]map[string]*string)
+	fileStatics       = make(map[string]map[string]*string)
+	dynamicStatics    = make(map[string]map[string]*string)
+
 	staticsByHostLock = sync.RWMutex{}
 )
 
@@ -33,17 +38,14 @@ func StaticByHost(path, rootPath, host string) {
 	staticsByHostLock.Lock()
 	defer staticsByHostLock.Unlock()
 
-	if host == "" {
-		statics[path] = &rootPath
-	} else {
-		if staticsByHost[host] == nil {
-			staticsByHost[host] = make(map[string]*string)
-		}
-		staticsByHost[host][path] = &rootPath
+	if codeStatics[host] == nil {
+		codeStatics[host] = make(map[string]*string)
 	}
+	codeStatics[host][path] = &rootPath
+	rebuildStaticsUnderLock(host)
 }
 
-// ReplaceStatics 使用 Copy-on-Write 机制原子地替换指定 host 下的所有静态目录规则
+// ReplaceStatics 使用 Copy-on-Write 机制原子地替换指定 host 下的动态静态目录规则
 func ReplaceStatics(host string, config map[string]string) {
 	newStatics := make(map[string]*string, len(config))
 	for path, rootPath := range config {
@@ -59,10 +61,28 @@ func ReplaceStatics(host string, config map[string]string) {
 	staticsByHostLock.Lock()
 	defer staticsByHostLock.Unlock()
 	
+	dynamicStatics[host] = newStatics
+	rebuildStaticsUnderLock(host)
+}
+
+func rebuildStaticsUnderLock(host string) {
+	combined := make(map[string]*string)
+	
+	// 合并三种来源的静态路由
+	for k, v := range codeStatics[host] {
+		combined[k] = v
+	}
+	for k, v := range fileStatics[host] {
+		combined[k] = v
+	}
+	for k, v := range dynamicStatics[host] {
+		combined[k] = v
+	}
+	
 	if host == "" {
-		statics = newStatics
+		statics = combined
 	} else {
-		staticsByHost[host] = newStatics
+		staticsByHost[host] = combined
 	}
 }
 

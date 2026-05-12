@@ -72,9 +72,19 @@ var (
 	websocketServicesLock = sync.RWMutex{}
 	websocketServicesList = make([]*websocketServiceType, 0)
 
-	// Rewrite 与 Proxy 按 Host 隔离
+	// Rewrite 与 Proxy 按 Host 隔离 (编译后的最终路由)
 	hostRewrites     = make(map[string][]*rewriteType)
 	hostProxies      = make(map[string][]*proxyType)
+	
+	// 按来源隔离的策略，避免互相覆盖
+	codeProxies    = make(map[string][]*proxyType)
+	fileProxies    = make(map[string][]*proxyType)
+	dynamicProxies = make(map[string][]*proxyType)
+	
+	codeRewrites    = make(map[string][]*rewriteType)
+	fileRewrites    = make(map[string][]*rewriteType)
+	dynamicRewrites = make(map[string][]*rewriteType)
+	
 	hostPoliciesLock = sync.RWMutex{}
 
 	// 过滤器与拦截器

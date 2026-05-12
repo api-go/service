@@ -1,5 +1,11 @@
 package service
 
+import (
+	"path/filepath"
+	"regexp"
+	"strings"
+)
+
 // CertSet SSL 证书配置
 type CertSet struct {
 	CertFile string
@@ -60,6 +66,81 @@ type ServiceConfig struct {
 	MaxUploadBufferPerConnection  int32               // 每个连接的最大上传缓冲区大小
 	MaxUploadBufferPerStream      int32               // 每个流的最大上传缓冲区大小
 	StopTimeout                   int                 // 停止服务的超时时间 (ms)
+	
+	// 从配置文件中加载的静态路由策略 (按 Host 分组，全局配置用 "" 或 "*")
+	Proxies  map[string][]ProxyRule
+	Rewrites map[string][]RewriteRule
+	Statics  map[string]map[string]string
 }
 
 var Config = ServiceConfig{}
+
+// ApplyConfig 将 ServiceConfig 中的路由策略应用到内部的文件级策略中
+func ApplyConfig() {
+	hostPoliciesLock.Lock()
+	defer hostPoliciesLock.Unlock()
+
+	// 清理旧的 file 策略
+	fileProxies = make(map[string][]*proxyType)
+	fileRewrites = make(map[string][]*rewriteType)
+	
+	for host, rules := range Config.Proxies {
+		if host == "*" {
+			host = ""
+		}
+		newProxies := make([]*proxyType, 0, len(rules))
+		for _, r := range rules {
+			p := &proxyType{authLevel: r.AuthLevel, fromPath: r.Path, toApp: r.ToApp, toPath: r.ToPath}
+			if strings.ContainsRune(r.Path, '(') {
+				matcher, err := regexp.Compile("^" + r.Path + "$")
+				if err == nil {
+					p.matcher = matcher
+				}
+			}
+			newProxies = append(newProxies, p)
+		}
+		fileProxies[host] = newProxies
+		rebuildProxiesUnderLock(host)
+	}
+
+	for host, rules := range Config.Rewrites {
+		if host == "*" {
+			host = ""
+		}
+		newRewrites := make([]*rewriteType, 0, len(rules))
+		for _, r := range rules {
+			s := &rewriteType{fromPath: r.Path, toPath: r.ToPath}
+			if strings.ContainsRune(r.Path, '(') {
+				matcher, err := regexp.Compile("^" + r.Path + "$")
+				if err == nil {
+					s.matcher = matcher
+				}
+			}
+			newRewrites = append(newRewrites, s)
+		}
+		fileRewrites[host] = newRewrites
+		rebuildRewritesUnderLock(host)
+	}
+
+	staticsByHostLock.Lock()
+	defer staticsByHostLock.Unlock()
+	fileStatics = make(map[string]map[string]*string)
+	
+	for host, config := range Config.Statics {
+		if host == "*" {
+			host = ""
+		}
+		newStatics := make(map[string]*string, len(config))
+		for path, rootPath := range config {
+			rp := rootPath
+			if !filepath.IsAbs(rp) {
+				if absPath, err := filepath.Abs(rp); err == nil {
+					rp = absPath
+				}
+			}
+			newStatics[path] = &rp
+		}
+		fileStatics[host] = newStatics
+		rebuildStaticsUnderLock(host)
+	}
+}

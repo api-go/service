@@ -26,8 +26,17 @@ func (hc *HostContext) Rewrite(path string, toPath string) *HostContext {
 
 	hostPoliciesLock.Lock()
 	defer hostPoliciesLock.Unlock()
-	hostRewrites[hc.host] = append(hostRewrites[hc.host], s)
+	codeRewrites[hc.host] = append(codeRewrites[hc.host], s)
+	rebuildRewritesUnderLock(hc.host)
 	return hc
+}
+
+func rebuildRewritesUnderLock(host string) {
+	var combined []*rewriteType
+	combined = append(combined, codeRewrites[host]...)
+	combined = append(combined, fileRewrites[host]...)
+	combined = append(combined, dynamicRewrites[host]...)
+	hostRewrites[host] = combined
 }
 
 func processRewrite(request *Request, response *Response, logger *log.Logger) bool {
@@ -108,7 +117,7 @@ type RewriteRule struct {
 	ToPath string // 重写后的路径，例如 /new/$1
 }
 
-// ReplaceRewrites 使用 Copy-on-Write 机制原子地替换指定 host 下的所有重写规则。
+// ReplaceRewrites 使用 Copy-on-Write 机制原子地替换指定 host 下的动态重写规则。
 func ReplaceRewrites(host string, rules []RewriteRule) {
 	newRewrites := make([]*rewriteType, 0, len(rules))
 	for _, r := range rules {
@@ -124,5 +133,6 @@ func ReplaceRewrites(host string, rules []RewriteRule) {
 
 	hostPoliciesLock.Lock()
 	defer hostPoliciesLock.Unlock()
-	hostRewrites[host] = newRewrites
+	dynamicRewrites[host] = newRewrites
+	rebuildRewritesUnderLock(host)
 }
