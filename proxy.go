@@ -12,21 +12,37 @@ import (
 )
 
 type proxyType struct {
-	matcher   *regexp.Regexp
-	authLevel int
-	fromPath  string
-	toApp     string
-	toPath    string
+	matcher     *regexp.Regexp
+	authLevel   int
+	fromPath    string
+	toApp       string
+	toPath      string
+	hasWildcard bool
+	prefix      string
+	toPrefix    string
 }
 
-func (hc *HostContext) Proxy(authLevel int, path string, toApp, toPath string) *HostContext {
+func parseProxyRule(authLevel int, path, toApp, toPath string) *proxyType {
 	p := &proxyType{authLevel: authLevel, fromPath: path, toApp: toApp, toPath: toPath}
-	if strings.Contains(path, "(") {
+	if strings.ContainsRune(path, '(') {
 		matcher, err := regexp.Compile("^" + path + "$")
 		if err == nil {
 			p.matcher = matcher
 		}
+	} else if strings.HasSuffix(path, "/*") {
+		p.hasWildcard = true
+		p.prefix = path[:len(path)-1]
+		if strings.HasSuffix(toPath, "/*") {
+			p.toPrefix = toPath[:len(toPath)-1]
+		} else {
+			p.toPrefix = toPath
+		}
 	}
+	return p
+}
+
+func (hc *HostContext) Proxy(authLevel int, path string, toApp, toPath string) *HostContext {
+	p := parseProxyRule(authLevel, path, toApp, toPath)
 
 	hostPoliciesLock.Lock()
 	defer hostPoliciesLock.Unlock()
@@ -71,12 +87,7 @@ func findProxy(request *Request) (int, *string, *string, string) {
 		}
 
 		for _, pi := range proxies {
-			if pi.matcher == nil {
-				if pi.fromPath == requestPath {
-					toPath := pi.toPath + queryString
-					return pi.authLevel, &pi.toApp, &toPath, h
-				}
-			} else {
+			if pi.matcher != nil {
 				finds := pi.matcher.FindAllStringSubmatch(requestPath, 1)
 				if len(finds) > 0 {
 					toApp := pi.toApp
@@ -87,6 +98,18 @@ func findProxy(request *Request) (int, *string, *string, string) {
 					}
 					toPath += queryString
 					return pi.authLevel, &toApp, &toPath, h
+				}
+			} else if pi.hasWildcard {
+				if strings.HasPrefix(requestPath, pi.prefix) {
+					suffix := requestPath[len(pi.prefix):]
+					toPath := pi.toPrefix + suffix + queryString
+					toApp := pi.toApp
+					return pi.authLevel, &toApp, &toPath, h
+				}
+			} else {
+				if pi.fromPath == requestPath {
+					toPath := pi.toPath + queryString
+					return pi.authLevel, &pi.toApp, &toPath, h
 				}
 			}
 		}
@@ -184,14 +207,7 @@ type ProxyRule struct {
 func ReplaceProxies(host string, rules []ProxyRule) {
 	newProxies := make([]*proxyType, 0, len(rules))
 	for _, r := range rules {
-		p := &proxyType{authLevel: r.AuthLevel, fromPath: r.Path, toApp: r.ToApp, toPath: r.ToPath}
-		if strings.ContainsRune(r.Path, '(') {
-			matcher, err := regexp.Compile("^" + r.Path + "$")
-			if err == nil {
-				p.matcher = matcher
-			}
-		}
-		newProxies = append(newProxies, p)
+		newProxies = append(newProxies, parseProxyRule(r.AuthLevel, r.Path, r.ToApp, r.ToPath))
 	}
 
 	hostPoliciesLock.Lock()

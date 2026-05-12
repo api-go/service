@@ -2,8 +2,6 @@ package service
 
 import (
 	"path/filepath"
-	"regexp"
-	"strings"
 )
 
 // CertSet SSL 证书配置
@@ -90,14 +88,7 @@ func ApplyConfig() {
 		}
 		newProxies := make([]*proxyType, 0, len(rules))
 		for _, r := range rules {
-			p := &proxyType{authLevel: r.AuthLevel, fromPath: r.Path, toApp: r.ToApp, toPath: r.ToPath}
-			if strings.ContainsRune(r.Path, '(') {
-				matcher, err := regexp.Compile("^" + r.Path + "$")
-				if err == nil {
-					p.matcher = matcher
-				}
-			}
-			newProxies = append(newProxies, p)
+			newProxies = append(newProxies, parseProxyRule(r.AuthLevel, r.Path, r.ToApp, r.ToPath))
 		}
 		fileProxies[host] = newProxies
 		rebuildProxiesUnderLock(host)
@@ -109,14 +100,7 @@ func ApplyConfig() {
 		}
 		newRewrites := make([]*rewriteType, 0, len(rules))
 		for _, r := range rules {
-			s := &rewriteType{fromPath: r.Path, toPath: r.ToPath}
-			if strings.ContainsRune(r.Path, '(') {
-				matcher, err := regexp.Compile("^" + r.Path + "$")
-				if err == nil {
-					s.matcher = matcher
-				}
-			}
-			newRewrites = append(newRewrites, s)
+			newRewrites = append(newRewrites, parseRewriteRule(r.Path, r.ToPath))
 		}
 		fileRewrites[host] = newRewrites
 		rebuildRewritesUnderLock(host)

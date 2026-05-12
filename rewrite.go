@@ -9,20 +9,35 @@ import (
 )
 
 type rewriteType struct {
-	matcher  *regexp.Regexp
-	fromPath string
-	toPath   string
+	matcher     *regexp.Regexp
+	fromPath    string
+	toPath      string
+	hasWildcard bool
+	prefix      string
+	toPrefix    string
 }
 
-func (hc *HostContext) Rewrite(path string, toPath string) *HostContext {
-	s := &rewriteType{fromPath: path, toPath: toPath}
-
-	if strings.ContainsRune(path, '(') {
-		matcher, err := regexp.Compile("^" + path + "$")
+func parseRewriteRule(fromPath, toPath string) *rewriteType {
+	s := &rewriteType{fromPath: fromPath, toPath: toPath}
+	if strings.ContainsRune(fromPath, '(') {
+		matcher, err := regexp.Compile("^" + fromPath + "$")
 		if err == nil {
 			s.matcher = matcher
 		}
+	} else if strings.HasSuffix(fromPath, "/*") {
+		s.hasWildcard = true
+		s.prefix = fromPath[:len(fromPath)-1]
+		if strings.HasSuffix(toPath, "/*") {
+			s.toPrefix = toPath[:len(toPath)-1]
+		} else {
+			s.toPrefix = toPath
+		}
 	}
+	return s
+}
+
+func (hc *HostContext) Rewrite(path string, toPath string) *HostContext {
+	s := parseRewriteRule(path, toPath)
 
 	hostPoliciesLock.Lock()
 	defer hostPoliciesLock.Unlock()
@@ -68,12 +83,7 @@ func processRewrite(request *Request, response *Response, logger *log.Logger) bo
 			found := false
 			rewriteToPath := ""
 
-			if ri.matcher == nil {
-				if ri.fromPath == requestPath {
-					rewriteToPath = ri.toPath
-					found = true
-				}
-			} else {
+			if ri.matcher != nil {
 				finds := ri.matcher.FindAllStringSubmatch(request.RequestURI, 1)
 				if len(finds) > 0 {
 					toPath := ri.toPath
@@ -81,6 +91,17 @@ func processRewrite(request *Request, response *Response, logger *log.Logger) bo
 						toPath = strings.ReplaceAll(toPath, fmt.Sprintf("$%d", i), part)
 					}
 					rewriteToPath = toPath
+					found = true
+				}
+			} else if ri.hasWildcard {
+				if strings.HasPrefix(requestPath, ri.prefix) {
+					suffix := requestPath[len(ri.prefix):]
+					rewriteToPath = ri.toPrefix + suffix
+					found = true
+				}
+			} else {
+				if ri.fromPath == requestPath {
+					rewriteToPath = ri.toPath
 					found = true
 				}
 			}
@@ -121,14 +142,7 @@ type RewriteRule struct {
 func ReplaceRewrites(host string, rules []RewriteRule) {
 	newRewrites := make([]*rewriteType, 0, len(rules))
 	for _, r := range rules {
-		s := &rewriteType{fromPath: r.Path, toPath: r.ToPath}
-		if strings.ContainsRune(r.Path, '(') {
-			matcher, err := regexp.Compile("^" + r.Path + "$")
-			if err == nil {
-				s.matcher = matcher
-			}
-		}
-		newRewrites = append(newRewrites, s)
+		newRewrites = append(newRewrites, parseRewriteRule(r.Path, r.ToPath))
 	}
 
 	hostPoliciesLock.Lock()
