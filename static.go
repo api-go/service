@@ -43,6 +43,29 @@ func StaticByHost(path, rootPath, host string) {
 	}
 }
 
+// ReplaceStatics 使用 Copy-on-Write 机制原子地替换指定 host 下的所有静态目录规则
+func ReplaceStatics(host string, config map[string]string) {
+	newStatics := make(map[string]*string, len(config))
+	for path, rootPath := range config {
+		rp := rootPath
+		if !filepath.IsAbs(rp) {
+			if absPath, err := filepath.Abs(rp); err == nil {
+				rp = absPath
+			}
+		}
+		newStatics[path] = &rp
+	}
+
+	staticsByHostLock.Lock()
+	defer staticsByHostLock.Unlock()
+	
+	if host == "" {
+		statics = newStatics
+	} else {
+		staticsByHost[host] = newStatics
+	}
+}
+
 func getStaticFilePath(requestPath, host string) string {
 	staticsByHostLock.RLock()
 	defer staticsByHostLock.RUnlock()

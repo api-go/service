@@ -162,3 +162,31 @@ func copyResponse(res *gohttp.Result, response *Response, logger *log.Logger) {
 		}
 	}
 }
+
+// ProxyRule 定义了外部传递或 Redis 中获取的代理规则配置
+type ProxyRule struct {
+	Path      string // 匹配路径或正则，支持变量捕获如 ^/api/(.*)$
+	AuthLevel int    // 所需鉴权级别
+	ToApp     string // 目标 AppName 或完整 URL (可含 $1 变量替换)
+	ToPath    string // 目标路径 (可含 $1 变量替换)
+}
+
+// ReplaceProxies 使用全量指针替换的方式 (Copy-on-Write) 无缝更新指定 host 的所有代理规则。
+// 该方法非常轻量，仅在赋值瞬间短暂持有写锁，不会阻塞任何并发请求，并且自动淘汰旧规则。
+func ReplaceProxies(host string, rules []ProxyRule) {
+	newProxies := make([]*proxyType, 0, len(rules))
+	for _, r := range rules {
+		p := &proxyType{authLevel: r.AuthLevel, fromPath: r.Path, toApp: r.ToApp, toPath: r.ToPath}
+		if strings.ContainsRune(r.Path, '(') {
+			matcher, err := regexp.Compile("^" + r.Path + "$")
+			if err == nil {
+				p.matcher = matcher
+			}
+		}
+		newProxies = append(newProxies, p)
+	}
+
+	hostPoliciesLock.Lock()
+	defer hostPoliciesLock.Unlock()
+	hostProxies[host] = newProxies
+}

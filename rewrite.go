@@ -101,3 +101,28 @@ func processRewrite(request *Request, response *Response, logger *log.Logger) bo
 
 	return false
 }
+
+// RewriteRule 定义了外部传递的 URL 重写规则
+type RewriteRule struct {
+	Path   string // 原始路径或匹配正则，例如 ^/old/(.*)$
+	ToPath string // 重写后的路径，例如 /new/$1
+}
+
+// ReplaceRewrites 使用 Copy-on-Write 机制原子地替换指定 host 下的所有重写规则。
+func ReplaceRewrites(host string, rules []RewriteRule) {
+	newRewrites := make([]*rewriteType, 0, len(rules))
+	for _, r := range rules {
+		s := &rewriteType{fromPath: r.Path, toPath: r.ToPath}
+		if strings.ContainsRune(r.Path, '(') {
+			matcher, err := regexp.Compile("^" + r.Path + "$")
+			if err == nil {
+				s.matcher = matcher
+			}
+		}
+		newRewrites = append(newRewrites, s)
+	}
+
+	hostPoliciesLock.Lock()
+	defer hostPoliciesLock.Unlock()
+	hostRewrites[host] = newRewrites
+}

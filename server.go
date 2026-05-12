@@ -5,6 +5,7 @@ import (
 	"apigo.cc/go/log"
 	"apigo.cc/go/redis"
 	"apigo.cc/go/safe"
+	"apigo.cc/go/starter"
 	"context"
 	"fmt"
 	"golang.org/x/net/http2"
@@ -12,46 +13,35 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 	"time"
 )
 
 // GlobalDiscoverer 供服务框架内部使用的发现实例
 var GlobalDiscoverer *discover.Discoverer
 
-// AsyncServer 异步服务实例
-type AsyncServer struct {
+// WebServer 实现了 starter.Service 和 starter.Reloader 接口
+type WebServer struct {
 	server      *http.Server
 	listener    net.Listener
 	Addr        string
-	stopChan    chan os.Signal
-	startChan   chan bool
 	useDiscover bool
 	discoverer  *discover.Discoverer
 }
 
-// AsyncStart 异步启动服务
-func AsyncStart() *AsyncServer {
-	as := &AsyncServer{
-		startChan: make(chan bool, 1),
-		stopChan:  make(chan os.Signal, 1),
-	}
-
-	go as.start()
-
-	<-as.startChan
-	return as
+// NewWebServer 创建并返回一个新的 WebServer 实例
+func NewWebServer() *WebServer {
+	return &WebServer{}
 }
 
-func (as *AsyncServer) start() {
+// Start 启动服务，实现 starter.Service 接口
+func (ws *WebServer) Start(ctx context.Context, logger *log.Logger) error {
 	listenStr := Config.Listen
-	as.useDiscover = false
+	ws.useDiscover = false
 
 	if listenStr == "" {
 		listenStr = ":0,h2c"
-		as.useDiscover = true
+		ws.useDiscover = true
 	}
 
 	// 解析第一个监听配置
@@ -76,7 +66,7 @@ func (as *AsyncServer) start() {
 	}
 	appName := Config.App
 	if appName != "" || Config.Register != "" {
-		as.useDiscover = true
+		ws.useDiscover = true
 	}
 
 	// 初始化服务器唯一标识 (8位，物理上限 3,844/s)
@@ -92,18 +82,16 @@ func (as *AsyncServer) start() {
 
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
-		log.DefaultLogger.Error("failed to listen", "addr", addr, "error", err.Error())
-		as.startChan <- false
-		return
+		return fmt.Errorf("failed to listen on %s: %w", addr, err)
 	}
 
-	as.listener = listener
-	as.Addr = listener.Addr().String()
-	serverAddr = as.Addr
+	ws.listener = listener
+	ws.Addr = listener.Addr().String()
+	serverAddr = ws.Addr
 
 	// 如果使用了随机端口且没有明确指定不需要服务发现，则开启
 	if addr == ":0" || strings.HasSuffix(addr, ":0") {
-		as.useDiscover = true
+		ws.useDiscover = true
 	}
 
 	h2s := &http2.Server{}
@@ -112,7 +100,7 @@ func (as *AsyncServer) start() {
 		handler = h2c.NewHandler(handler, h2s)
 	}
 
-	as.server = &http.Server{
+	ws.server = &http.Server{
 		Handler:           handler,
 		ReadTimeout:       time.Duration(Config.ReadTimeout) * time.Millisecond,
 		ReadHeaderTimeout: time.Duration(Config.ReadHeaderTimeout) * time.Millisecond,
@@ -122,8 +110,8 @@ func (as *AsyncServer) start() {
 	}
 
 	// 启动服务发现
-	if as.useDiscover {
-		_, port, _ := net.SplitHostPort(as.Addr)
+	if ws.useDiscover {
+		_, port, _ := net.SplitHostPort(ws.Addr)
 		ip := GetServerIp()
 		discoverAddr := fmt.Sprintf("%s:%s", ip, port)
 
@@ -163,52 +151,98 @@ func (as *AsyncServer) start() {
 			registry = "127.0.0.1:6379::15" // Default fallback
 		}
 
-		as.discoverer = discover.Start(registry, appName, discoverAddr, log.DefaultLogger, discConf)
-		GlobalDiscoverer = as.discoverer
-		if as.discoverer != nil {
-			log.DefaultLogger.Info("discover registered", "app", appName, "addr", discoverAddr)
+		ws.discoverer = discover.Start(registry, appName, discoverAddr, logger, discConf)
+		GlobalDiscoverer = ws.discoverer
+		if ws.discoverer != nil {
+			logger.Info("discover registered", "app", appName, "addr", discoverAddr)
 		}
 	}
 
-	signal.Notify(as.stopChan, os.Interrupt, syscall.SIGTERM)
+	errChan := make(chan error, 1)
 
 	go func() {
-		log.DefaultLogger.Info("service starting", "addr", as.Addr, "proto", protocol)
-		as.startChan <- true
-		if err := as.server.Serve(listener); err != nil && err != http.ErrServerClosed {
-			log.DefaultLogger.Error("server error", "error", err.Error())
+		logger.Info("service starting", "addr", ws.Addr, "proto", protocol)
+		if err := ws.server.Serve(listener); err != nil && err != http.ErrServerClosed {
+			errChan <- err
 		}
+		close(errChan)
 	}()
-}
 
-// Stop 停止服务
-func (as *AsyncServer) Stop() {
-	log.DefaultLogger.Info("service stopping")
-	if as.discoverer != nil {
-		as.discoverer.Stop()
+	// 短暂等待验证是否闪退
+	select {
+	case err := <-errChan:
+		if err != nil {
+			return err
+		}
+	case <-time.After(100 * time.Millisecond):
 	}
 
+	return nil
+}
+
+// Stop 停止服务，实现 starter.Service 接口
+func (ws *WebServer) Stop(ctx context.Context) error {
+	log.DefaultLogger.Info("service stopping")
+	if ws.discoverer != nil {
+		ws.discoverer.Stop()
+	}
+	if ws.server != nil {
+		if err := ws.server.Shutdown(ctx); err != nil {
+			return err
+		}
+	}
+	log.DefaultLogger.Info("service stopped")
+	return nil
+}
+
+// Health 检查服务健康状态，实现 starter.Service 接口
+func (ws *WebServer) Health() error {
+	if ws.server == nil {
+		return fmt.Errorf("server is not running")
+	}
+	return nil
+}
+
+// Reload 实现配置重新加载，实现 starter.Reloader 接口
+func (ws *WebServer) Reload() error {
+	log.DefaultLogger.Info("reloading configurations...")
+	return triggerReload()
+}
+
+// AsyncServer 兼容旧版异步服务实例
+type AsyncServer struct {
+	*WebServer
+}
+
+// Stop 兼容旧版的无参数停止方法
+func (as *AsyncServer) Stop() {
 	stopTimeout := time.Duration(Config.StopTimeout) * time.Millisecond
 	if stopTimeout <= 0 {
 		stopTimeout = 5 * time.Second
 	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), stopTimeout)
 	defer cancel()
-
-	if err := as.server.Shutdown(ctx); err != nil {
-		log.DefaultLogger.Error("server shutdown error", "error", err.Error())
-	}
-	log.DefaultLogger.Info("service stopped")
+	_ = as.WebServer.Stop(ctx)
 }
 
-// Wait 等待服务结束 (信号监听)
+// AsyncStart 兼容旧版的异步启动方法
+func AsyncStart() *AsyncServer {
+	ws := NewWebServer()
+	_ = ws.Start(context.Background(), log.DefaultLogger)
+	return &AsyncServer{WebServer: ws}
+}
+
+// Wait 等待服务结束 (兼容旧版，直接阻塞)
 func (as *AsyncServer) Wait() {
-	<-as.stopChan
-	as.Stop()
+	select {}
 }
 
-// Start 同步启动服务
+// Start 兼容旧版的同步启动方法 (通过内部注册 starter 实现)
 func Start() {
-	AsyncStart().Wait()
+	stopTimeout := time.Duration(Config.StopTimeout) * time.Millisecond
+	if stopTimeout <= 0 {
+		stopTimeout = 5 * time.Second
+	}
+	starter.Register("web-server", NewWebServer(), 100, 5*time.Second, stopTimeout)
+	starter.Run()
 }
