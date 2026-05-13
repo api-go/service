@@ -206,12 +206,12 @@ func (ws *WebServer) Stop(ctx context.Context) error {
 	return nil
 }
 
-// Health 检查服务健康状态，实现 starter.Service 接口
-func (ws *WebServer) Health() error {
+// Status 检查服务健康状态，实现 starter.Service 接口
+func (ws *WebServer) Status() (string, error) {
 	if ws.server == nil {
-		return fmt.Errorf("server is not running")
+		return "", fmt.Errorf("server is not running")
 	}
-	return nil
+	return ws.Addr, nil
 }
 
 // Reload 实现配置重新加载，实现 starter.Reloader 接口
