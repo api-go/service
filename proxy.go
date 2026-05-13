@@ -22,7 +22,40 @@ type proxyType struct {
 	toPrefix    string
 }
 
-func parseProxyRule(authLevel int, path, toApp, toPath string) *proxyType {
+func parseTo(to string) (app, path string) {
+	if to == "" {
+		return "", "/"
+	}
+
+	// 查找协议
+	if strings.Contains(to, "://") {
+		protocolPart, rest, _ := strings.Cut(to, "://")
+		// 协议后的第一个 /
+		if firstSlash := strings.Index(rest, "/"); firstSlash != -1 {
+			app = protocolPart + "://" + rest[:firstSlash]
+			path = rest[firstSlash:]
+		} else {
+			app = to
+			path = "/"
+		}
+	} else {
+		// 无协议，第一个 / 之前是 app
+		if firstSlash := strings.Index(to, "/"); firstSlash != -1 {
+			app = to[:firstSlash]
+			path = to[firstSlash:]
+		} else {
+			app = to
+			path = "/"
+		}
+	}
+	return
+}
+
+func parseProxyRule(authLevel int, path, toApp, toPath string, to string) *proxyType {
+	if to != "" {
+		toApp, toPath = parseTo(to)
+	}
+
 	p := &proxyType{authLevel: authLevel, fromPath: path, toApp: toApp, toPath: toPath}
 	if strings.ContainsRune(path, '(') {
 		matcher, err := regexp.Compile("^" + path + "$")
@@ -41,8 +74,8 @@ func parseProxyRule(authLevel int, path, toApp, toPath string) *proxyType {
 	return p
 }
 
-func (hc *HostContext) Proxy(authLevel int, path string, toApp, toPath string) *HostContext {
-	p := parseProxyRule(authLevel, path, toApp, toPath)
+func (hc *HostContext) Proxy(authLevel int, path string, to string) *HostContext {
+	p := parseProxyRule(authLevel, path, "", "", to)
 
 	hostPoliciesLock.Lock()
 	defer hostPoliciesLock.Unlock()
@@ -199,15 +232,16 @@ func copyResponse(res *gohttp.Result, response *Response, logger *log.Logger) {
 type ProxyRule struct {
 	Path      string // 匹配路径或正则，支持变量捕获如 ^/api/(.*)$
 	AuthLevel int    // 所需鉴权级别
-	ToApp     string // 目标 AppName 或完整 URL (可含 $1 变量替换)
-	ToPath    string // 目标路径 (可含 $1 变量替换)
+	To        string // 目标地址，格式为 "app/path" 或 "http://url/path" (支持后缀 /* 映射)
+	ToApp     string // [Deprecated] 目标 AppName 或完整 URL (可含 $1 变量替换)
+	ToPath    string // [Deprecated] 目标路径 (可含 $1 变量替换)
 }
 
-// ReplaceProxies 使用全量指针替换的方式 (Copy-on-Write) 无缝更新指定 host 的动态代理规则，不影响通过代码或文件写入的固定规则。
+// ReplaceProxies 使用全量指针替换的方式 (Copy-on-Write) 无缝更新指定 host 的动态代理规则。
 func ReplaceProxies(host string, rules []ProxyRule) {
 	newProxies := make([]*proxyType, 0, len(rules))
 	for _, r := range rules {
-		newProxies = append(newProxies, parseProxyRule(r.AuthLevel, r.Path, r.ToApp, r.ToPath))
+		newProxies = append(newProxies, parseProxyRule(r.AuthLevel, r.Path, r.ToApp, r.ToPath, r.To))
 	}
 
 	hostPoliciesLock.Lock()

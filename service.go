@@ -260,16 +260,14 @@ func (gc *GroupContext) WebSocket(path string, serviceFunc any) *websocketServic
 	return gc.hc.WebSocket(gc.prefix+path, serviceFunc)
 }
 
-func (gc *GroupContext) Rewrite(path string, toPath string) *GroupContext {
-	gc.hc.Rewrite(gc.prefix+path, toPath)
+func (gc *GroupContext) Rewrite(path string, to string) *GroupContext {
+	gc.hc.Rewrite(gc.prefix+path, to)
 	return gc
 }
-
-func (gc *GroupContext) Proxy(authLevel int, path string, toApp, toPath string) *GroupContext {
-	gc.hc.Proxy(authLevel, gc.prefix+path, toApp, toPath)
+func (gc *GroupContext) Proxy(authLevel int, path string, to string) *GroupContext {
+	gc.hc.Proxy(authLevel, gc.prefix+path, to)
 	return gc
 }
-
 func (hc *HostContext) WebSocket(path string, serviceFunc any) *websocketServiceType {
 	funcType := reflect.TypeOf(serviceFunc)
 	if funcType.Kind() != reflect.Func {

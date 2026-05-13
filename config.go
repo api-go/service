@@ -1,6 +1,7 @@
 package service
 
 import (
+	"apigo.cc/go/cast"
 	"path/filepath"
 )
 
@@ -66,8 +67,8 @@ type ServiceConfig struct {
 	StopTimeout                   int                 // 停止服务的超时时间 (ms)
 	
 	// 从配置文件中加载的静态路由策略 (按 Host 分组，全局配置用 "" 或 "*")
-	Proxies  map[string][]ProxyRule
-	Rewrites map[string][]RewriteRule
+	Proxies  map[string]map[string]any
+	Rewrites map[string]map[string]any
 	Statics  map[string]map[string]string
 }
 
@@ -78,31 +79,53 @@ func ApplyConfig() {
 	hostPoliciesLock.Lock()
 	defer hostPoliciesLock.Unlock()
 
-	// 清理旧的 file 策略
+	// 1. Proxies KV 解析
 	fileProxies = make(map[string][]*proxyType)
-	fileRewrites = make(map[string][]*rewriteType)
-	
-	for host, rules := range Config.Proxies {
+	for host, kv := range Config.Proxies {
 		if host == "*" {
 			host = ""
 		}
-		newProxies := make([]*proxyType, 0, len(rules))
-		for _, r := range rules {
-			newProxies = append(newProxies, parseProxyRule(r.AuthLevel, r.Path, r.ToApp, r.ToPath))
+		rules := make([]*proxyType, 0, len(kv))
+		for path, val := range kv {
+			if to, ok := val.(string); ok {
+				// 极简 KV 模式: "/api/*": "user-svc/v1/*"
+				rules = append(rules, parseProxyRule(0, path, "", "", to))
+			} else {
+				// 对象模式: "/api/*": {"To": "...", "Auth": 1}
+				m, _ := cast.ToMap[string, any](val)
+				rules = append(rules, parseProxyRule(
+					cast.Int(m["Auth"]),
+					path,
+					cast.String(m["ToApp"]),
+					cast.String(m["ToPath"]),
+					cast.String(m["To"]),
+				))
+			}
 		}
-		fileProxies[host] = newProxies
+		fileProxies[host] = rules
 		rebuildProxiesUnderLock(host)
 	}
 
-	for host, rules := range Config.Rewrites {
+	// 2. Rewrites KV 解析
+	fileRewrites = make(map[string][]*rewriteType)
+	for host, kv := range Config.Rewrites {
 		if host == "*" {
 			host = ""
 		}
-		newRewrites := make([]*rewriteType, 0, len(rules))
-		for _, r := range rules {
-			newRewrites = append(newRewrites, parseRewriteRule(r.Path, r.ToPath))
+		rules := make([]*rewriteType, 0, len(kv))
+		for path, val := range kv {
+			if to, ok := val.(string); ok {
+				rules = append(rules, parseRewriteRule(path, "", to))
+			} else {
+				m, _ := cast.ToMap[string, any](val)
+				rules = append(rules, parseRewriteRule(
+					path,
+					cast.String(m["ToPath"]),
+					cast.String(m["To"]),
+				))
+			}
 		}
-		fileRewrites[host] = newRewrites
+		fileRewrites[host] = rules
 		rebuildRewritesUnderLock(host)
 	}
 

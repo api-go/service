@@ -55,12 +55,16 @@ func (ws *WebServer) Start(ctx context.Context, logger *log.Logger) error {
 	part := strings.Split(listenStr, "|")[0]
 	addr, opts, _ := strings.Cut(part, ",")
 
-	protocol := "http"
+	protocol := ""
 	for _, opt := range strings.Split(opts, ",") {
 		opt = strings.ToLower(strings.TrimSpace(opt))
-		if opt == "h2c" || opt == "h2" {
+		if opt == "h2c" || opt == "h2" || opt == "http" || opt == "https" {
 			protocol = opt
 		}
+	}
+	
+	if protocol == "" {
+		protocol = "http" // Default to http
 	}
 
 	if !strings.Contains(addr, ":") {

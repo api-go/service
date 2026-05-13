@@ -17,7 +17,10 @@ type rewriteType struct {
 	toPrefix    string
 }
 
-func parseRewriteRule(fromPath, toPath string) *rewriteType {
+func parseRewriteRule(fromPath, toPath, to string) *rewriteType {
+	if to != "" {
+		toPath = to
+	}
 	s := &rewriteType{fromPath: fromPath, toPath: toPath}
 	if strings.ContainsRune(fromPath, '(') {
 		matcher, err := regexp.Compile("^" + fromPath + "$")
@@ -36,8 +39,8 @@ func parseRewriteRule(fromPath, toPath string) *rewriteType {
 	return s
 }
 
-func (hc *HostContext) Rewrite(path string, toPath string) *HostContext {
-	s := parseRewriteRule(path, toPath)
+func (hc *HostContext) Rewrite(path string, to string) *HostContext {
+	s := parseRewriteRule(path, "", to)
 
 	hostPoliciesLock.Lock()
 	defer hostPoliciesLock.Unlock()
@@ -135,14 +138,15 @@ func processRewrite(request *Request, response *Response, logger *log.Logger) bo
 // RewriteRule 定义了外部传递的 URL 重写规则
 type RewriteRule struct {
 	Path   string // 原始路径或匹配正则，例如 ^/old/(.*)$
-	ToPath string // 重写后的路径，例如 /new/$1
+	To     string // 目标路径或完整 URL，例如 /new/$1
+	ToPath string // [Deprecated] 重写后的路径
 }
 
 // ReplaceRewrites 使用 Copy-on-Write 机制原子地替换指定 host 下的动态重写规则。
 func ReplaceRewrites(host string, rules []RewriteRule) {
 	newRewrites := make([]*rewriteType, 0, len(rules))
 	for _, r := range rules {
-		newRewrites = append(newRewrites, parseRewriteRule(r.Path, r.ToPath))
+		newRewrites = append(newRewrites, parseRewriteRule(r.Path, r.ToPath, r.To))
 	}
 
 	hostPoliciesLock.Lock()

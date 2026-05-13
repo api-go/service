@@ -43,7 +43,7 @@ func TestProxyDirect(t *testing.T) {
 	defer backend.Close()
 
 	// 注册代理规则
-	Host("*").Proxy(0, "/proxy", backend.URL, "/hello")
+	Host("*").Proxy(0, "/proxy", backend.URL+"/hello")
 
 	rh := &RouteHandler{}
 	req := httptest.NewRequest("GET", "/proxy", nil)
