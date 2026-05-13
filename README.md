@@ -59,6 +59,59 @@ func main() {
 - **文档生成**: `service.MakeDocument()` 返回全量接口描述
 - **依赖注入**: `service.GetInjectT[T]()` 快速获取已注入的对象或组件
 
+## 配置指南 (ServiceConfig)
+
+详细配置项可查阅 `config.go` 中的 `ServiceConfig` 结构。通过 `config.Load` 支持从 `env.yml` 或环境变量加载。
+
+### 1. 基础服务配置
+```yaml
+service:
+  App: "user-service"         # 应用名称 (缺省自动探测)
+  Listen: ":8080,http|:443"   # 监听端口, 多监听用 | 隔开, 选项用 , 隔开 (http/h2/h2c)
+  Register: "127.0.0.1:6379"  # 发现中心地址 (Redis URL 或配置名)
+  Weight: 100                 # 服务发现权重
+  ReadTimeout: 30000          # 读取请求超时 (ms)
+  WriteTimeout: 30000         # 写入响应超时 (ms)
+  MaxHeaderBytes: 1048576     # 最大头部字节数 (1MB)
+  StopTimeout: 5000           # 优雅停机等待时间 (ms)
+```
+
+### 2. 下游调用配置 (Calls)
+```yaml
+service:
+  Calls:
+    order-service:            # 目标应用名
+      Timeout: 5000           # 调用超时时间 (ms)
+      Http2: true             # 强制启用 H2C
+      Token: "secure-token"   # 访问凭证
+```
+
+### 3. 声明式路由与代理 (Nginx 模式)
+除了代码注册，也支持在配置文件中直接声明：
+```yaml
+service:
+  # 代理规则 (Proxy)
+  Proxies:
+    "aa.com":                 # 指定 Host (支持 aa.com, :8080, *, "")
+      - Path: "/api/*"        # 必须以 /* 结尾启用前缀匹配
+        ToApp: "backend-app"  # 转发至服务发现的应用名
+        ToPath: "/v1/*"       # 后缀映射
+      - Path: "/direct"       # 精确匹配
+        ToApp: "http://1.1.1.1:80" # 直接转发至 URL
+        ToPath: "/hello"
+  
+  # 重写规则 (Rewrite)
+  Rewrites:
+    "*":                      # 全局规则
+      - Path: "^/old/(.*)$"   # 带捕获组的正则匹配
+        ToPath: "/new/$1"     # 变量替换
+
+  # 静态目录 (Static)
+  Statics:
+    "www.example.com":
+      "/ui": "./dist"         # 将 /ui 路径映射至本地 ./dist 目录
+```
+
 ## 基础设施对齐
 - **类型转换**: `apigo.cc/go/cast`
 - **日志系统**: `apigo.cc/go/log`
