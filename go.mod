@@ -3,12 +3,13 @@ module apigo.cc/go/service
 go 1.25.0
 
 require (
-	apigo.cc/go/cast v1.3.0
+	apigo.cc/go/cast v1.3.2
+	apigo.cc/go/config v1.3.0
 	apigo.cc/go/discover v1.3.0
-	apigo.cc/go/file v1.3.0
+	apigo.cc/go/file v1.3.1
 	apigo.cc/go/http v1.3.0
 	apigo.cc/go/id v1.3.0
-	apigo.cc/go/log v1.3.0
+	apigo.cc/go/log v1.3.2
 	apigo.cc/go/redis v1.3.0
 	apigo.cc/go/safe v1.3.0
 	apigo.cc/go/starter v1.0.1
@@ -18,7 +19,6 @@ require (
 )
 
 require (
-	apigo.cc/go/config v1.3.0 // indirect
 	apigo.cc/go/crypto v1.3.0 // indirect
 	apigo.cc/go/encoding v1.3.0 // indirect
 	apigo.cc/go/rand v1.3.0 // indirect

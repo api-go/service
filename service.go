@@ -151,6 +151,26 @@ func Host(host string) *HostContext {
 	return &HostContext{host: host}
 }
 
+// Register 注册一个 Web 服务 (使用默认 Host "*")
+func Register(method, path string, serviceFunc any) *webServiceType {
+	return Host("*").Register(method, path, serviceFunc)
+}
+
+// RegisterWebsocket 注册一个 WebSocket 服务 (使用默认 Host "*")
+func RegisterWebsocket(path string, serviceFunc any) *websocketServiceType {
+	return Host("*").WebSocket(path, serviceFunc)
+}
+
+// Proxy 注册一个代理转发 (使用默认 Host "*")
+func Proxy(authLevel int, path string, to string) {
+	Host("*").Proxy(authLevel, path, to)
+}
+
+// Restful 注册一个符合 RESTful 规范的服务结构体 (使用默认 Host "*")
+func Restful(authLevel int, path string, serviceStruct any) {
+	Host("*").Restful(authLevel, path, serviceStruct)
+}
+
 func (hc *HostContext) Register(method, path string, serviceFunc any) *webServiceType {
 	s, err := makeCachedService(serviceFunc)
 	if err != nil {
@@ -289,6 +309,45 @@ func (hc *HostContext) WebSocket(path string, serviceFunc any) *websocketService
 	websocketServices[hc.host][path] = ws
 	websocketServicesList = append(websocketServicesList, ws)
 	return ws
+}
+
+// Restful 自动根据方法名注册 RESTful 服务
+func (hc *HostContext) Restful(authLevel int, path string, serviceStruct any) {
+	v := reflect.ValueOf(serviceStruct)
+	t := v.Type()
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+
+	for i := 0; i < v.NumMethod(); i++ {
+		methodName := v.Type().Method(i).Name
+		var httpMethod string
+		switch {
+		case strings.HasPrefix(methodName, "Get"):
+			httpMethod = "GET"
+		case strings.HasPrefix(methodName, "Post"):
+			httpMethod = "POST"
+		case strings.HasPrefix(methodName, "Put"):
+			httpMethod = "PUT"
+		case strings.HasPrefix(methodName, "Delete"):
+			httpMethod = "DELETE"
+		case strings.HasPrefix(methodName, "Patch"):
+			httpMethod = "PATCH"
+		default:
+			continue
+		}
+
+		subPath := strings.ToLower(methodName[len(httpMethod):])
+		if subPath == "" {
+			hc.Register(httpMethod, path, v.Method(i).Interface()).Auth(authLevel)
+		} else {
+			fullPath := path
+			if !strings.HasSuffix(fullPath, "/") {
+				fullPath += "/"
+			}
+			hc.Register(httpMethod, fullPath+subPath, v.Method(i).Interface()).Auth(authLevel)
+		}
+	}
 }
 
 // webServiceType 链式配置方法
