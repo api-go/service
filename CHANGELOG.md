@@ -1,6 +1,16 @@
 # CHANGELOG - go/service
 
-## v1.3.1 (2026-05-10)
+## v1.3.6 (2026-05-31)
+- **基础设施增强**:
+  - 新增 `WebSocketConn` 标准包装器，提供统一的 `Send`, `ReadString`, `ReadBytes`, `ReadJSON` 接口。
+  - 新增 `Upgrade` 函数，支持在自定义处理器中手动升级 HTTP 为 WebSocket。
+  - 集成 `Session` 会话管理，支持分布式 Redis 或本地内存存储。
+- **安全加固**: 彻底移除 `UploadFile.Save` 方法，规避低代码环境下的文件落盘风险。
+- **JSMOD 类型对齐**:
+  - 提供 `newRequest`, `newResponse`, `newWebSocket`, `newSession`, `newFile` 占位工厂，支持 AI 环境下的类型自动发现 (DTS)。
+  - 导出 `upgrade` 方法支持动态服务分发场景。
+
+## v1.3.5 (2026-05-31)
 - **Logging Refactor (Callback Pattern)**: 引入 `LogRequest` 闭环式回调封装，自动处理日志级别检查、对象池获取及元数据填充，消除 20+ 参数带来的维护压力。
 - **Graceful Shutdown**: `ServiceConfig` 新增 `StopTimeout` 字段，支持通过配置灵活管控服务优雅退出的超时时间（默认 5s）。
 - **Panic Recovery**: 增强 `handler.go` 中的 `recover` 逻辑，在发生 Panic 时自动记录 `requestId` 和 `path`，大幅提升故障定位效率。

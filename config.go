@@ -48,6 +48,8 @@ type ServiceConfig struct {
 	Memory                        int                 // 内存限制 (MB)
 	CookieScope                   string              // Session Cookie 有效范围: host|domain|topDomain
 	SessionWithoutCookie          bool                // Session 禁用 Cookie
+	SessionRedis                  string              // Session 存储使用的 Redis 配置名称 (不设置则使用内存)
+	SessionTimeout                int                 // Session 有效期 (秒，默认 3600)
 	DeviceWithoutCookie           bool                // 设备ID禁用 Cookie
 	IdServer                      string              // Redis 服务器连接 (用于全局唯一 ID 生成)
 	IndexFiles                    []string            // 静态文件索引文件

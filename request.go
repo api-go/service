@@ -2,7 +2,6 @@ package service
 
 import (
 	"apigo.cc/go/discover"
-	"apigo.cc/go/file"
 	"io"
 	"mime/multipart"
 	"net"
@@ -22,15 +21,6 @@ type UploadFile struct {
 // Open 打开上传文件
 func (f *UploadFile) Open() (multipart.File, error) {
 	return f.fileHeader.Open()
-}
-
-// Save 保存上传文件到本地
-func (f *UploadFile) Save(filename string) error {
-	data, err := f.Content()
-	if err != nil {
-		return err
-	}
-	return file.WriteBytes(filename, data)
 }
 
 // Content 获取上传文件内容

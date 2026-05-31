@@ -177,11 +177,19 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if ws != nil {
 			authLevel = ws.authLevel
 			priority = ws.options.Priority
-			doWebsocketService(ws, request, response, requestLogger)
+			// 鉴权
+			pass, obj := checkAuth(ws.authLevel, &ws.options, request, response, args, requestLogger)
+			if !pass {
+				if !response.changed {
+					response.WriteHeader(http.StatusForbidden)
+				}
+				return
+			}
+			doWebsocketService(ws, request, response, requestLogger, obj)
 			return
 		} else if s != nil {
 			// 鉴权
-			pass, obj := checkAuth(s, request, response, args, requestLogger)
+			pass, obj := checkAuth(s.authLevel, &s.options, request, response, args, requestLogger)
 			if !pass {
 				if !response.changed {
 					response.WriteHeader(http.StatusForbidden)
@@ -303,15 +311,23 @@ func parseRequestArgs(request *Request, args map[string]any) {
 	}
 }
 
-func checkAuth(s *webServiceType, request *Request, response *Response, args map[string]any, logger *log.Logger) (bool, any) {
-	ac := webAuthCheckers[s.authLevel]
+func checkAuth(authLevel int, options *WebServiceOptions, request *Request, response *Response, args map[string]any, logger *log.Logger) (bool, any) {
+	ac := webAuthCheckers[authLevel]
 	if ac == nil {
 		ac = webAuthChecker
 	}
 	if ac == nil {
-		return true, nil
+		sess := NewSession(request.SessionId(), logger)
+		if authLevel > 0 && sess.GetAuthLevel() < authLevel {
+			return false, sess
+		}
+		return true, sess
 	}
-	return ac(s.authLevel, logger, &request.RequestURI, args, request, response, &s.options)
+	pass, obj := ac(authLevel, logger, &request.RequestURI, args, request, response, options)
+	if pass && obj == nil {
+		obj = NewSession(request.SessionId(), logger)
+	}
+	return pass, obj
 }
 
 func doWebService(service *webServiceType, request *Request, response *Response, args map[string]any,
@@ -347,7 +363,9 @@ func doWebService(service *webServiceType, request *Request, response *Response,
 			params[i] = reflect.ValueOf(in).Elem()
 		default:
 			// 尝试依赖注入
-			if obj := GetInject(t); obj != nil {
+			if object != nil && reflect.TypeOf(object).AssignableTo(t) {
+				params[i] = reflect.ValueOf(object)
+			} else if obj := GetInject(t); obj != nil {
 				params[i] = reflect.ValueOf(obj)
 			} else {
 				params[i] = reflect.New(t).Elem()

@@ -42,7 +42,28 @@ service.Host("*").WebSocket("/ws", func(conn *websocket.Conn, logger *log.Logger
 }).Auth(0).Memo("聊天室")
 ```
 
-### 3. 生命周期管理
+### 4. 会话管理 (Session)
+框架内置了会话管理机制，支持内存存储和 Redis 存储。
+
+- **获取会话**: 在服务方法中注入 `*service.Session` 参数。
+- **自动鉴权**: 如果未设置自定义 `AuthChecker`，框架将自动检查 Session 中的 `_authLevel` 是否满足接口要求。
+- **权限校验**: `session.AuthFuncs("func1", "&func2")` 支持 OR 和 AND 逻辑的权限细粒度校验。
+
+```go
+service.Host("*").POST("/login", func(s *service.Session, in LoginArgs) string {
+    // 业务登录逻辑...
+    s.SetAuthLevel(1) // 设置鉴权级别
+    s.Set("uid", "123")
+    s.Save() // 持久化
+    return "ok"
+})
+
+service.Host("*").GET("/profile", func(s *service.Session) any {
+    return s.Get("uid")
+}).Auth(1) // 自动要求 Session AuthLevel >= 1
+```
+
+### 5. 生命周期管理
 ```go
 func main() {
     // 异步启动

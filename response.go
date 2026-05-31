@@ -31,7 +31,6 @@ func NewResponse(writer http.ResponseWriter) *Response {
 
 // Header 获取响应头部
 func (r *Response) Header() http.Header {
-	r.changed = true
 	if r.ProxyHeader != nil {
 		return *r.ProxyHeader
 	}

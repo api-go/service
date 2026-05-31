@@ -9,6 +9,7 @@ require (
 	apigo.cc/go/file v1.3.2
 	apigo.cc/go/http v1.3.2
 	apigo.cc/go/id v1.3.1
+	apigo.cc/go/jsmod v1.0.1
 	apigo.cc/go/log v1.3.4
 	apigo.cc/go/redis v1.3.2
 	apigo.cc/go/safe v1.3.1
