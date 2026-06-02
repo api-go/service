@@ -1,5 +1,10 @@
 # CHANGELOG - go/service
 
+## v1.3.7 (2026-06-02)
+- **API 统一**:
+  - `HostContext` 新增 `Static` 方法，支持 `Host("example.com").Static("/ui", "./dir")` 这种更具一致性的链式调用风格。
+  - 全局 `Static` 统一收拢为底层 `Host("*").Static(...)` 实现。
+
 ## v1.3.6 (2026-05-31)
 - **基础设施增强**:
   - 新增 `WebSocketConn` 标准包装器，提供统一的 `Send`, `ReadString`, `ReadBytes`, `ReadJSON` 接口。

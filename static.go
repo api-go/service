@@ -23,8 +23,18 @@ var (
 )
 
 // Static 注册静态文件目录
+func (hc *HostContext) Static(path, rootPath string) *HostContext {
+	host := hc.host
+	if host == "*" {
+		host = ""
+	}
+	StaticByHost(path, rootPath, host)
+	return hc
+}
+
+// Static 注册静态文件目录 (使用默认 Host "*")
 func Static(path, rootPath string) {
-	StaticByHost(path, rootPath, "")
+	Host("*").Static(path, rootPath)
 }
 
 // StaticByHost 为指定域名注册静态文件目录

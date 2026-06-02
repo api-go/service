@@ -74,7 +74,7 @@ func main() {
 ```
 
 ### 4. 增强插件
-- **静态文件**: `service.Static("/ui", "./static_dir")`
+- **静态文件**: `service.Static("/ui", "./static_dir")` 或 `service.Host("example.com").Static("/ui", "./static_dir")`
 - **URL 重写**: `service.Rewrite("/old", "/new")`
 - **反向代理**: `service.Proxy(0, "/api", "other_app", "/api")`
 - **文档生成**: `service.MakeDocument()` 返回全量接口描述
