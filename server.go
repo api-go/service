@@ -42,6 +42,12 @@ func (ws *WebServer) Start(ctx context.Context, logger *log.Logger) error {
 		logger = log.DefaultLogger
 	}
 	ws.logger = logger
+
+	// 初始加载配置
+	if err := config.Load(&Config, "service"); err != nil {
+		logger.Error("failed to load config during start", "error", err.Error())
+	}
+	ApplyConfig()
 	
 	listenStr := Config.Listen
 	ws.useDiscover = false
@@ -72,10 +78,11 @@ func (ws *WebServer) Start(ctx context.Context, logger *log.Logger) error {
 	}
 
 	// 检查是否需要启动服务发现
-	if Config.App == "" {
-		Config.App = GetDefaultName()
-	}
 	appName := Config.App
+	if appName == "" {
+		appName = GetDefaultName()
+		Config.App = appName
+	}
 	if appName != "" || Config.Register != "" {
 		ws.useDiscover = true
 	}
@@ -227,11 +234,7 @@ func (ws *WebServer) Reload() error {
 	logger.Info("reloading configurations...")
 	
 	// 重新加载配置文件中的策略
-	appName := Config.App
-	if appName == "" {
-		appName = GetDefaultName()
-	}
-	if err := config.Load(&Config, appName); err != nil {
+	if err := config.Load(&Config, "service"); err != nil {
 		logger.Error("failed to load config during reload", "error", err.Error())
 	}
 	ApplyConfig()

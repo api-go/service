@@ -1,5 +1,12 @@
 # CHANGELOG - go/service
 
+## v1.5.1 (2026-06-04)
+- **修复**: 在 `WebServer.Start` 中显式调用 `config.Load(&Config, "service")`，确保启动时自动从 `env.yaml` 加载 `service:` 块。
+- **修复**: 优化 `WebServer.Reload` 的配置加载逻辑，确保与启动加载逻辑保持一致。
+
+## v1.5.0 (2026-05-10)
+- **基础设施对齐**: 全局对齐至 v1.5.0。
+
 ## v1.3.7 (2026-06-02)
 - **API 统一**:
   - `HostContext` 新增 `Static` 方法，支持 `Host("example.com").Static("/ui", "./dir")` 这种更具一致性的链式调用风格。
