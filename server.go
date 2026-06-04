@@ -389,7 +389,7 @@ func (ws *webServer) Start(ctx context.Context, logger *log.Logger) error {
 	errChan := make(chan error, 1)
 
 	go func() {
-		logger.Info("service starting", "addr", ws.Addr, "proto", protocol)
+		logger.Info("starting listener", "addr", ws.Addr, "proto", protocol)
 		ws.running = true
 		if err := ws.server.Serve(ws.listener); err != nil && err != http.ErrServerClosed {
 			errChan <- err
@@ -410,11 +410,6 @@ func (ws *webServer) Start(ctx context.Context, logger *log.Logger) error {
 
 // Stop 停止服务，实现 starter.Service 接口
 func (ws *webServer) Stop(ctx context.Context) error {
-	logger := ws.logger
-	if logger == nil {
-		logger = log.DefaultLogger
-	}
-	logger.Info("service stopping")
 	ws.running = false
 	if ws.discoverer != nil {
 		ws.discoverer.Stop()
@@ -424,7 +419,6 @@ func (ws *webServer) Stop(ctx context.Context) error {
 			return err
 		}
 	}
-	logger.Info("service stopped")
 	return nil
 }
 
@@ -483,6 +477,9 @@ var startOnce sync.Once
 
 // Start 兼容旧版的同步启动方法 (通过内部注册 starter 实现)
 func Start() {
+	if DefaultServer.running {
+		return
+	}
 	startOnce.Do(func() {
 		stopTimeout := time.Duration(Config.StopTimeout) * time.Millisecond
 		if stopTimeout <= 0 {

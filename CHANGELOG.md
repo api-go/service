@@ -1,13 +1,17 @@
 # CHANGELOG - go/service
 
+## v1.5.3 (2026-06-04)
+- **新特性**:
+  - `Static` 静态文件服务增加默认索引文件识别：当请求目录时，若未配置 `IndexFiles`，会自动尝试匹配 `index.html` 或 `index.htm`。
+- **优化**:
+  - 依赖升级至 `apigo.cc/go/log v1.5.3`，实现对第三方库原始日志的自动劫持与 `serverId` 注入。
+  - 清理了启动阶段多余的诊断日志，确保“零配置”启动时的控制台纯净度。
+- **稳定性**:
+  - 修复了 `Start()` 函数的幂等性问题，防止在手动调用与 `starter` 框架调度冲突时产生重复绑定端口的错误。
+
 ## v1.5.2 (2026-06-04)
 - **架构重构**: 彻底移除全局状态泄露，重构为严格的单例模式。
-  - 将所有路由 (`webServices`)、代理配置 (`hostProxies`)、静态资源 (`statics`) 及鉴权器等 30 多个包级全局变量移入私有的 `webServer` 结构体中。
-  - `NewWebServer()` 改为直接返回全局安全的 `DefaultServer` 单例。
-  - 所有的包级公开方法（如 `Register`, `Proxy`, `Static` 等）现作为 `DefaultServer` 实例方法的安全代理。
-- **依赖更新**: 升级 `apigo.cc/go/log` 至 `v1.5.1`，修复了在使用 `starter` 时异步控制台日志被静默丢弃的关键 Bug。
-
-## v1.5.1 (2026-06-04)
+...
 - **修复**: 在 `WebServer.Start` 中显式调用 `config.Load(&Config, "service")`，确保启动时自动从 `env.yaml` 加载 `service:` 块。
 - **修复**: 优化 `WebServer.Reload` 的配置加载逻辑，确保与启动加载逻辑保持一致。
 
