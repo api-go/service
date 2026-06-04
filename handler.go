@@ -15,10 +15,12 @@ import (
 )
 
 type RouteHandler struct {
+	ws               *webServer
 	webRequestingNum int64
 }
 
 func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	ws := rh.ws
 	atomic.AddInt64(&rh.webRequestingNum, 1)
 	defer atomic.AddInt64(&rh.webRequestingNum, -1)
 
@@ -55,7 +57,7 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		// 记录日志
 		if (s == nil || !s.options.NoLog200 || response.Code != 200) &&
-			!(Config.NoLogGets && r.Method == http.MethodGet && response.Code == 200) {
+			!(ws.Config.NoLogGets && r.Method == http.MethodGet && response.Code == 200) {
 
 			scheme := "http"
 			if r.TLS != nil {
@@ -65,7 +67,7 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			// 过滤请求头
 			reqHeaders := make(map[string]string)
-			noLogHeaders := strings.Split(Config.NoLogHeaders, ",")
+			noLogHeaders := strings.Split(ws.Config.NoLogHeaders, ",")
 			for k, v := range r.Header {
 				skip := false
 				for _, nl := range noLogHeaders {
@@ -93,7 +95,7 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				} else {
 					respData = string(response.body[:1024]) + "..."
 				}
-			} else if Config.NoLogOutputFields != "" {
+			} else if ws.Config.NoLogOutputFields != "" {
 				// 简单的字段过滤逻辑 (如果是 JSON 对象)
 				// 这里可以根据 Config.NoLogOutputFields, LogOutputArrayNum, LogOutputFieldSize 进行更复杂的处理
 				// 暂按字符串截断处理
@@ -109,8 +111,8 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				entry.Scheme = scheme
 				entry.Proto = r.Proto
 				entry.ClientIp = request.ClientIp()
-				entry.ServerId = serverId
-				entry.App = Config.App
+				entry.ServerId = ws.serverId
+				entry.App = ws.Config.App
 				entry.FromApp = r.Header.Get(discover.HeaderFromApp)
 				entry.FromNode = r.Header.Get(discover.HeaderFromNode)
 				entry.DeviceId = request.DeviceId()
@@ -131,15 +133,15 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	// 处理 SessionId 和 DeviceId
-	handleClientKeys(request, response)
+	ws.handleClientKeys(request, response)
 
 	// 1. 处理重写 (Rewrite)
-	if processRewrite(request, response, requestLogger) {
+	if ws.processRewrite(request, response, requestLogger) {
 		return
 	}
 
 	// 2. 处理代理 (Proxy)
-	if processProxy(request, response, requestLogger) {
+	if ws.processProxy(request, response, requestLogger) {
 		return
 	}
 
@@ -148,19 +150,19 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	host := r.Host
 
 	// 处理静态文件
-	if processStatic(path, request, response, requestLogger) {
+	if ws.processStatic(path, request, response, requestLogger) {
 		return
 	}
 
-	var ws *websocketServiceType
-	s, ws = findService(r.Method, host, path)
+	var wsc *websocketServiceType
+	s, wsc = ws.findService(r.Method, host, path)
 
 	// 4. 参数解析 (Form & Body)
 	parseRequestArgs(request, args)
 
 	// 5. 前置过滤器
 	var result any
-	for _, filter := range inFilters {
+	for _, filter := range ws.inFilters {
 		result = filter(&args, request, response, requestLogger)
 		if result != nil {
 			break
@@ -174,22 +176,22 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// 6. 处理业务执行 (WS 或 Web)
 	if result == nil {
-		if ws != nil {
-			authLevel = ws.authLevel
-			priority = ws.options.Priority
+		if wsc != nil {
+			authLevel = wsc.authLevel
+			priority = wsc.options.Priority
 			// 鉴权
-			pass, obj := checkAuth(ws.authLevel, &ws.options, request, response, args, requestLogger)
+			pass, obj := ws.checkAuth(wsc.authLevel, &wsc.options, request, response, args, requestLogger)
 			if !pass {
 				if !response.changed {
 					response.WriteHeader(http.StatusForbidden)
 				}
 				return
 			}
-			doWebsocketService(ws, request, response, requestLogger, obj)
+			ws.doWebsocketService(wsc, request, response, requestLogger, obj)
 			return
 		} else if s != nil {
 			// 鉴权
-			pass, obj := checkAuth(s.authLevel, &s.options, request, response, args, requestLogger)
+			pass, obj := ws.checkAuth(s.authLevel, &s.options, request, response, args, requestLogger)
 			if !pass {
 				if !response.changed {
 					response.WriteHeader(http.StatusForbidden)
@@ -197,7 +199,7 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			// 执行业务
-			result = doWebService(s, request, response, args, nil, requestLogger, obj)
+			result = ws.doWebService(s, request, response, args, nil, requestLogger, obj)
 		}
 	}
 
@@ -206,7 +208,7 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 7. 后置过滤器
-	for _, filter := range outFilters {
+	for _, filter := range ws.outFilters {
 		newResult, done := filter(args, request, response, result, requestLogger)
 		if newResult != nil {
 			result = newResult
@@ -225,9 +227,9 @@ func hostOnly(host string) string {
 	return h
 }
 
-func findService(method, host, path string) (*webServiceType, *websocketServiceType) {
-	webServicesLock.RLock()
-	defer webServicesLock.RUnlock()
+func (ws *webServer) findService(method, host, path string) (*webServiceType, *websocketServiceType) {
+	ws.webServicesLock.RLock()
+	defer ws.webServicesLock.RUnlock()
 
 	// 1. 准备 Host 候选列表: "host:port", "host", ":port", "*"
 	hostOnly, port, _ := strings.Cut(host, ":")
@@ -239,7 +241,7 @@ func findService(method, host, path string) (*webServiceType, *websocketServiceT
 
 	// 2. 匹配 Web Service
 	for _, h := range hosts {
-		if services, exists := webServices[h]; exists {
+		if services, exists := ws.webServices[h]; exists {
 			if s, ok := services[method+path]; ok {
 				return s, nil
 			}
@@ -250,10 +252,10 @@ func findService(method, host, path string) (*webServiceType, *websocketServiceT
 	}
 
 	// 3. 匹配 WebSocket
-	websocketServicesLock.RLock()
-	defer websocketServicesLock.RUnlock()
+	ws.websocketServicesLock.RLock()
+	defer ws.websocketServicesLock.RUnlock()
 	for _, h := range hosts {
-		if services, exists := websocketServices[h]; exists {
+		if services, exists := ws.websocketServices[h]; exists {
 			if ws, ok := services[path]; ok {
 				return nil, ws
 			}
@@ -262,7 +264,7 @@ func findService(method, host, path string) (*webServiceType, *websocketServiceT
 
 	// 4. 正则匹配
 	for _, h := range hosts {
-		if services, exists := regexWebServices[h]; exists {
+		if services, exists := ws.regexWebServices[h]; exists {
 			for i := len(services) - 1; i >= 0; i-- {
 				s := services[i]
 				if s.method != "*" && s.method != method {
@@ -311,10 +313,10 @@ func parseRequestArgs(request *Request, args map[string]any) {
 	}
 }
 
-func checkAuth(authLevel int, options *WebServiceOptions, request *Request, response *Response, args map[string]any, logger *log.Logger) (bool, any) {
-	ac := webAuthCheckers[authLevel]
+func (ws *webServer) checkAuth(authLevel int, options *WebServiceOptions, request *Request, response *Response, args map[string]any, logger *log.Logger) (bool, any) {
+	ac := ws.webAuthCheckers[authLevel]
 	if ac == nil {
-		ac = webAuthChecker
+		ac = ws.webAuthChecker
 	}
 	if ac == nil {
 		sess := NewSession(request.SessionId(), logger)
@@ -330,7 +332,7 @@ func checkAuth(authLevel int, options *WebServiceOptions, request *Request, resp
 	return pass, obj
 }
 
-func doWebService(service *webServiceType, request *Request, response *Response, args map[string]any,
+func (ws *webServer) doWebService(service *webServiceType, request *Request, response *Response, args map[string]any,
 	result any, logger *log.Logger, object any) any {
 	if result != nil {
 		return result
@@ -365,7 +367,7 @@ func doWebService(service *webServiceType, request *Request, response *Response,
 			// 尝试依赖注入
 			if object != nil && reflect.TypeOf(object).AssignableTo(t) {
 				params[i] = reflect.ValueOf(object)
-			} else if obj := GetInject(t); obj != nil {
+			} else if obj := ws.GetInject(t); obj != nil {
 				params[i] = reflect.ValueOf(obj)
 			} else {
 				params[i] = reflect.New(t).Elem()
@@ -404,24 +406,24 @@ func outputResult(response *Response, result any) {
 	_, _ = response.Write(data)
 }
 
-func handleClientKeys(request *Request, response *Response) {
+func (ws *webServer) handleClientKeys(request *Request, response *Response) {
 	// SessionId
-	if usedSessionIdKey != "" {
-		sessionId := request.Header.Get(usedSessionIdKey)
-		if sessionId == "" && !Config.SessionWithoutCookie {
-			if ck, err := request.Cookie(usedSessionIdKey); err == nil {
+	if ws.usedSessionIdKey != "" {
+		sessionId := request.Header.Get(ws.usedSessionIdKey)
+		if sessionId == "" && !ws.Config.SessionWithoutCookie {
+			if ck, err := request.Cookie(ws.usedSessionIdKey); err == nil {
 				sessionId = ck.Value
 			}
 		}
 		if sessionId == "" {
-			if sessionIdMaker != nil {
-				sessionId = sessionIdMaker()
+			if ws.sessionIdMaker != nil {
+				sessionId = ws.sessionIdMaker()
 			} else {
 				sessionId = IDMaker.Get11Bytes900MPerSecond()
 			}
-			if !Config.SessionWithoutCookie {
+			if !ws.Config.SessionWithoutCookie {
 				http.SetCookie(response.Writer, &http.Cookie{
-					Name:     usedSessionIdKey,
+					Name:     ws.usedSessionIdKey,
 					Value:    sessionId,
 					Path:     "/",
 					HttpOnly: true,
@@ -429,22 +431,22 @@ func handleClientKeys(request *Request, response *Response) {
 			}
 		}
 		request.Header.Set(discover.HeaderSessionID, sessionId)
-		response.Header().Set(usedSessionIdKey, sessionId)
+		response.Header().Set(ws.usedSessionIdKey, sessionId)
 	}
 
 	// DeviceId
-	if usedDeviceIdKey != "" {
-		deviceId := request.Header.Get(usedDeviceIdKey)
-		if deviceId == "" && !Config.DeviceWithoutCookie {
-			if ck, err := request.Cookie(usedDeviceIdKey); err == nil {
+	if ws.usedDeviceIdKey != "" {
+		deviceId := request.Header.Get(ws.usedDeviceIdKey)
+		if deviceId == "" && !ws.Config.DeviceWithoutCookie {
+			if ck, err := request.Cookie(ws.usedDeviceIdKey); err == nil {
 				deviceId = ck.Value
 			}
 		}
 		if deviceId == "" {
 			deviceId = IDMaker.Get11Bytes900MPerSecond()
-			if !Config.DeviceWithoutCookie {
+			if !ws.Config.DeviceWithoutCookie {
 				http.SetCookie(response.Writer, &http.Cookie{
-					Name:     usedDeviceIdKey,
+					Name:     ws.usedDeviceIdKey,
 					Value:    deviceId,
 					Path:     "/",
 					Expires:  time.Now().AddDate(10, 0, 0),
@@ -453,6 +455,6 @@ func handleClientKeys(request *Request, response *Response) {
 			}
 		}
 		request.Header.Set(discover.HeaderDeviceID, deviceId)
-		response.Header().Set(usedDeviceIdKey, deviceId)
+		response.Header().Set(ws.usedDeviceIdKey, deviceId)
 	}
 }

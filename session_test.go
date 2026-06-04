@@ -29,7 +29,7 @@ func TestSessionLogic(t *testing.T) {
 
 	// 2. 测试 AuthFuncs 逻辑
 	sess.Set("funcs", []string{"user.read", "user.write", "system.admin"})
-	
+
 	if !sess.AuthFuncs("user.read") {
 		t.Error("Expected true for user.read")
 	}
@@ -61,7 +61,7 @@ func TestSessionLogic(t *testing.T) {
 
 func TestSessionInjection(t *testing.T) {
 	SetClientKeys("", "", "sessid")
-	
+
 	handler := func(s *Session) string {
 		if s == nil {
 			return "no session"
@@ -72,7 +72,7 @@ func TestSessionInjection(t *testing.T) {
 	}
 	Host("*").GET("/test-session", handler)
 
-	rh := &RouteHandler{}
+	rh := &RouteHandler{ws: DefaultServer}
 	req := httptest.NewRequest("GET", "/test-session", nil)
 	req.Header.Set("sessid", "sess_123")
 	w := httptest.NewRecorder()
@@ -110,7 +110,7 @@ func TestCustomAuthInjection(t *testing.T) {
 	}
 	Host("*").GET("/test-auth", handler).Auth(10)
 
-	rh := &RouteHandler{}
+	rh := &RouteHandler{ws: DefaultServer}
 	req := httptest.NewRequest("GET", "/test-auth", nil)
 	w := httptest.NewRecorder()
 
@@ -126,14 +126,14 @@ func TestCustomAuthInjection(t *testing.T) {
 
 func TestAutomaticAuthLevelCheck(t *testing.T) {
 	SetClientKeys("", "", "sessid")
-	
+
 	handler := func() string {
 		return "ok"
 	}
 	Host("*").GET("/test-auto-auth", handler).Auth(1)
 
-	rh := &RouteHandler{}
-	
+	rh := &RouteHandler{ws: DefaultServer}
+
 	// 1. 无 Session 或 AuthLevel=0 时应失败
 	req1 := httptest.NewRequest("GET", "/test-auto-auth", nil)
 	req1.Header.Set("sessid", "sess_auto_1")

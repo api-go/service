@@ -12,9 +12,9 @@ func TestServiceRegister(t *testing.T) {
 
 	Host("*").Register("*", "/test", handler).Auth(0).Memo("test service")
 
-	webServicesLock.RLock()
-	s := webServices["*"]["*/test"]
-	webServicesLock.RUnlock()
+	DefaultServer.webServicesLock.RLock()
+	s := DefaultServer.webServices["*"]["*/test"]
+	DefaultServer.webServicesLock.RUnlock()
 
 	if s == nil {
 		t.Fatal("Service not registered")
@@ -35,9 +35,9 @@ func TestRegexServiceRegister(t *testing.T) {
 
 	Host("*").Register("*", "/user/{id}", handler).Auth(0).Memo("get user")
 
-	webServicesLock.RLock()
+	DefaultServer.webServicesLock.RLock()
 	found := false
-	for _, services := range regexWebServices {
+	for _, services := range DefaultServer.regexWebServices {
 		for _, s := range services {
 			if s.path == "/user/{id}" {
 				found = true
@@ -51,7 +51,7 @@ func TestRegexServiceRegister(t *testing.T) {
 			break
 		}
 	}
-	webServicesLock.RUnlock()
+	DefaultServer.webServicesLock.RUnlock()
 
 	if !found {
 		t.Fatal("Regex service not registered")

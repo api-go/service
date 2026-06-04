@@ -20,7 +20,7 @@ func TestWebSocketService(t *testing.T) {
 	}).Auth(0).Memo("test websocket")
 
 	// 启动测试服务器
-	server := httptest.NewServer(&RouteHandler{})
+	server := httptest.NewServer(&RouteHandler{ws: DefaultServer})
 	defer server.Close()
 
 	// 建立连接

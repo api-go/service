@@ -21,11 +21,15 @@ type Api struct {
 
 // MakeDocument 生成文档数据
 func MakeDocument() []Api {
+	return DefaultServer.MakeDocument()
+}
+
+func (ws *webServer) MakeDocument() []Api {
 	out := make([]Api, 0)
 
 	// 1. Rewrite & Proxy
-	hostPoliciesLock.RLock()
-	for host, rewrites := range hostRewrites {
+	ws.hostPoliciesLock.RLock()
+	for host, rewrites := range ws.hostRewrites {
 		for _, a := range rewrites {
 			out = append(out, Api{
 				Type: "Rewrite",
@@ -34,7 +38,7 @@ func MakeDocument() []Api {
 			})
 		}
 	}
-	for host, proxies := range hostProxies {
+	for host, proxies := range ws.hostProxies {
 		for _, a := range proxies {
 			out = append(out, Api{
 				Type: "Proxy",
@@ -43,11 +47,11 @@ func MakeDocument() []Api {
 			})
 		}
 	}
-	hostPoliciesLock.RUnlock()
+	ws.hostPoliciesLock.RUnlock()
 
 	// 2. Web Services
-	webServicesLock.RLock()
-	for _, a := range webServicesList {
+	ws.webServicesLock.RLock()
+	for _, a := range ws.webServicesList {
 		if a.options.NoDoc {
 			continue
 		}
@@ -67,22 +71,22 @@ func MakeDocument() []Api {
 		}
 		out = append(out, api)
 	}
-	webServicesLock.RUnlock()
+	ws.webServicesLock.RUnlock()
 
 	// 4. WebSocket Services
-	websocketServicesLock.RLock()
-	for _, ws := range websocketServicesList {
+	ws.websocketServicesLock.RLock()
+	for _, wsc := range ws.websocketServicesList {
 		api := Api{
 			Type:      "WebSocket",
-			Path:      ws.path,
-			AuthLevel: ws.authLevel,
-			Memo:      ws.memo,
-			Host:      ws.host,
+			Path:      wsc.path,
+			AuthLevel: wsc.authLevel,
+			Memo:      wsc.memo,
+			Host:      wsc.host,
 		}
-		if ws.funcType != nil && ws.funcType.NumIn() > 0 {
+		if wsc.funcType != nil && wsc.funcType.NumIn() > 0 {
 			// Find struct in
-			for i := 0; i < ws.funcType.NumIn(); i++ {
-				t := ws.funcType.In(i)
+			for i := 0; i < wsc.funcType.NumIn(); i++ {
+				t := wsc.funcType.In(i)
 				if t.Kind() == reflect.Struct {
 					api.In = getType(t)
 					break
@@ -91,7 +95,7 @@ func MakeDocument() []Api {
 		}
 		out = append(out, api)
 	}
-	websocketServicesLock.RUnlock()
+	ws.websocketServicesLock.RUnlock()
 
 	return out
 }

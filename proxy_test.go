@@ -10,12 +10,12 @@ func TestRewrite(t *testing.T) {
 	// 注册重写规则
 	Host("*").Rewrite("/old", "/new")
 	Host("*").Rewrite("/regex/(.*)", "/target/$1")
-	
+
 	// 注册目标服务
 	Host("*").ANY("/new", func() string { return "new content" }).Memo("new")
 	Host("*").ANY("/target/123", func() string { return "target content" }).Memo("target")
 
-	rh := &RouteHandler{}
+	rh := &RouteHandler{ws: DefaultServer}
 
 	// 测试精确匹配重写
 	req1 := httptest.NewRequest("GET", "/old", nil)
@@ -45,7 +45,7 @@ func TestProxyDirect(t *testing.T) {
 	// 注册代理规则
 	Host("*").Proxy(0, "/proxy", backend.URL+"/hello")
 
-	rh := &RouteHandler{}
+	rh := &RouteHandler{ws: DefaultServer}
 	req := httptest.NewRequest("GET", "/proxy", nil)
 	w := httptest.NewRecorder()
 	rh.ServeHTTP(w, req)

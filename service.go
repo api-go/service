@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
-	"sync"
 )
 
 // webServiceType 内部存储的服务元数据
@@ -17,7 +16,7 @@ type webServiceType struct {
 	path                string
 	pathMatcher         *regexp.Regexp
 	pathArgs            []string
-	paramsNum            int
+	paramsNum           int
 	inType              reflect.Type
 	inIndex             int
 	headersType         reflect.Type
@@ -54,121 +53,116 @@ type websocketServiceType struct {
 	options   WebServiceOptions
 }
 
-var (
-	serverId        string
-	serverAddr      string
-	serverProto     = "http"
-	serverProtoName = "http"
-	running         = false
-
-	// webServices 按 Host 隔离: map[host]map[method+path]*webServiceType
-	webServices      = make(map[string]map[string]*webServiceType)
-	// regexWebServices 按 Host 隔离: map[host][]*webServiceType
-	regexWebServices = make(map[string][]*webServiceType)
-	webServicesLock  = sync.RWMutex{}
-	webServicesList  = make([]*webServiceType, 0)
-
-	websocketServices     = make(map[string]map[string]*websocketServiceType)
-	websocketServicesLock = sync.RWMutex{}
-	websocketServicesList = make([]*websocketServiceType, 0)
-
-	// Rewrite 与 Proxy 按 Host 隔离 (编译后的最终路由)
-	hostRewrites     = make(map[string][]*rewriteType)
-	hostProxies      = make(map[string][]*proxyType)
-	
-	// 按来源隔离的策略，避免互相覆盖
-	codeProxies    = make(map[string][]*proxyType)
-	fileProxies    = make(map[string][]*proxyType)
-	dynamicProxies = make(map[string][]*proxyType)
-	
-	codeRewrites    = make(map[string][]*rewriteType)
-	fileRewrites    = make(map[string][]*rewriteType)
-	dynamicRewrites = make(map[string][]*rewriteType)
-	
-	hostPoliciesLock = sync.RWMutex{}
-
-	// 过滤器与拦截器
-	inFilters       = make([]func(*map[string]any, *Request, *Response, *log.Logger) any, 0)
-	outFilters      = make([]func(map[string]any, *Request, *Response, any, *log.Logger) (any, bool), 0)
-	errorHandle     func(any, *Request, *Response) any
-	webAuthChecker  func(int, *log.Logger, *string, map[string]any, *Request, *Response, *WebServiceOptions) (pass bool, object any)
-	webAuthCheckers = make(map[int]func(int, *log.Logger, *string, map[string]any, *Request, *Response, *WebServiceOptions) (pass bool, object any))
-
-	// 注入点
-	injectObjects   = make(map[reflect.Type]any)
-	injectFunctions = make(map[reflect.Type]func() any)
-
-	usedDeviceIdKey  string
-	usedClientAppKey string
-	usedSessionIdKey string
-	sessionIdMaker   func() string
-)
-
 // SetClientKeys 设置客户端标识相关的 Key 映射
 func SetClientKeys(deviceIdKey, clientAppKey, sessionIdKey string) {
-	usedDeviceIdKey = deviceIdKey
-	usedClientAppKey = clientAppKey
-	usedSessionIdKey = sessionIdKey
+	DefaultServer.SetClientKeys(deviceIdKey, clientAppKey, sessionIdKey)
+}
+
+func (ws *webServer) SetClientKeys(deviceIdKey, clientAppKey, sessionIdKey string) {
+	ws.usedDeviceIdKey = deviceIdKey
+	ws.usedClientAppKey = clientAppKey
+	ws.usedSessionIdKey = sessionIdKey
 }
 
 // SetSessionIdMaker 设置自定义会话 ID 生成器
 func SetSessionIdMaker(maker func() string) {
-	sessionIdMaker = maker
+	DefaultServer.SetSessionIdMaker(maker)
+}
+
+func (ws *webServer) SetSessionIdMaker(maker func() string) {
+	ws.sessionIdMaker = maker
 }
 
 // SetAuthChecker 设置全局鉴权器
 func SetAuthChecker(authChecker func(authLevel int, logger *log.Logger, url *string, in map[string]any, request *Request, response *Response, options *WebServiceOptions) (pass bool, object any)) {
-	webAuthChecker = authChecker
+	DefaultServer.SetAuthChecker(authChecker)
+}
+
+func (ws *webServer) SetAuthChecker(authChecker func(authLevel int, logger *log.Logger, url *string, in map[string]any, request *Request, response *Response, options *WebServiceOptions) (pass bool, object any)) {
+	ws.webAuthChecker = authChecker
 }
 
 // AddAuthChecker 为指定级别添加鉴权器
 func AddAuthChecker(authLevels []int, authChecker func(authLevel int, logger *log.Logger, url *string, in map[string]any, request *Request, response *Response, options *WebServiceOptions) (pass bool, object any)) {
+	DefaultServer.AddAuthChecker(authLevels, authChecker)
+}
+
+func (ws *webServer) AddAuthChecker(authLevels []int, authChecker func(authLevel int, logger *log.Logger, url *string, in map[string]any, request *Request, response *Response, options *WebServiceOptions) (pass bool, object any)) {
 	for _, al := range authLevels {
-		webAuthCheckers[al] = authChecker
+		ws.webAuthCheckers[al] = authChecker
 	}
 }
 
 // SetInFilter 设置前置过滤器
 func SetInFilter(filter func(in *map[string]any, request *Request, response *Response, logger *log.Logger) (out any)) {
-	inFilters = append(inFilters, filter)
+	DefaultServer.SetInFilter(filter)
+}
+
+func (ws *webServer) SetInFilter(filter func(in *map[string]any, request *Request, response *Response, logger *log.Logger) (out any)) {
+	ws.inFilters = append(ws.inFilters, filter)
 }
 
 // SetOutFilter 设置后置过滤器
 func SetOutFilter(filter func(in map[string]any, request *Request, response *Response, out any, logger *log.Logger) (newOut any, isOver bool)) {
-	outFilters = append(outFilters, filter)
+	DefaultServer.SetOutFilter(filter)
+}
+
+func (ws *webServer) SetOutFilter(filter func(in map[string]any, request *Request, response *Response, out any, logger *log.Logger) (newOut any, isOver bool)) {
+	ws.outFilters = append(ws.outFilters, filter)
 }
 
 // HostContext 提供流式服务注册能力
 type HostContext struct {
+	ws   *webServer
 	host string
 }
 
 // Host 指定服务运行的 Host (支持 "example.com", ":8080", "example.com:8080", "*")
 func Host(host string) *HostContext {
+	return DefaultServer.Host(host)
+}
+
+func (ws *webServer) Host(host string) *HostContext {
 	if host == "" {
 		host = "*"
 	}
-	return &HostContext{host: host}
+	return &HostContext{ws: ws, host: host}
 }
 
 // Register 注册一个 Web 服务 (使用默认 Host "*")
 func Register(method, path string, serviceFunc any) *webServiceType {
-	return Host("*").Register(method, path, serviceFunc)
+	return DefaultServer.Register(method, path, serviceFunc)
+}
+
+func (ws *webServer) Register(method, path string, serviceFunc any) *webServiceType {
+	return ws.Host("*").Register(method, path, serviceFunc)
 }
 
 // RegisterWebsocket 注册一个 WebSocket 服务 (使用默认 Host "*")
 func RegisterWebsocket(path string, serviceFunc any) *websocketServiceType {
-	return Host("*").WebSocket(path, serviceFunc)
+	return DefaultServer.RegisterWebsocket(path, serviceFunc)
+}
+
+func (ws *webServer) RegisterWebsocket(path string, serviceFunc any) *websocketServiceType {
+	return ws.Host("*").WebSocket(path, serviceFunc)
 }
 
 // Proxy 注册一个代理转发 (使用默认 Host "*")
 func Proxy(authLevel int, path string, to string) {
-	Host("*").Proxy(authLevel, path, to)
+	DefaultServer.Proxy(authLevel, path, to)
+}
+
+func (ws *webServer) Proxy(authLevel int, path string, to string) {
+	ws.Host("*").Proxy(authLevel, path, to)
 }
 
 // Restful 注册一个符合 RESTful 规范的服务结构体 (使用默认 Host "*")
 func Restful(authLevel int, path string, serviceStruct any) {
-	Host("*").Restful(authLevel, path, serviceStruct)
+	DefaultServer.Restful(authLevel, path, serviceStruct)
+}
+
+func (ws *webServer) Restful(authLevel int, path string, serviceStruct any) {
+	ws.Host("*").Restful(authLevel, path, serviceStruct)
 }
 
 func (hc *HostContext) Register(method, path string, serviceFunc any) *webServiceType {
@@ -188,25 +182,27 @@ func (hc *HostContext) Register(method, path string, serviceFunc any) *webServic
 		finds := finder.FindAllStringSubmatch(path, 20)
 		for _, found := range finds {
 			keyName = strings.Replace(keyName, regexp.QuoteMeta(found[0]), "(.*?)", 1)
+			hc.ws.webServicesLock.Lock() // Fixed: use lock from ws
 			s.pathArgs = append(s.pathArgs, found[1])
+			hc.ws.webServicesLock.Unlock()
 		}
 		if len(s.pathArgs) > 0 {
 			s.pathMatcher, _ = regexp.Compile("^" + keyName + "$")
 		}
 	}
 
-	webServicesLock.Lock()
-	defer webServicesLock.Unlock()
+	hc.ws.webServicesLock.Lock()
+	defer hc.ws.webServicesLock.Unlock()
 
 	if s.pathMatcher == nil {
-		if webServices[s.host] == nil {
-			webServices[s.host] = make(map[string]*webServiceType)
+		if hc.ws.webServices[s.host] == nil {
+			hc.ws.webServices[s.host] = make(map[string]*webServiceType)
 		}
-		webServices[s.host][s.method+s.path] = s
+		hc.ws.webServices[s.host][s.method+s.path] = s
 	} else {
-		regexWebServices[s.host] = append(regexWebServices[s.host], s)
+		hc.ws.regexWebServices[s.host] = append(hc.ws.regexWebServices[s.host], s)
 	}
-	webServicesList = append(webServicesList, s)
+	hc.ws.webServicesList = append(hc.ws.webServicesList, s)
 	return s
 }
 
@@ -301,13 +297,13 @@ func (hc *HostContext) WebSocket(path string, serviceFunc any) *websocketService
 		funcValue: reflect.ValueOf(serviceFunc),
 	}
 
-	websocketServicesLock.Lock()
-	defer websocketServicesLock.Unlock()
-	if websocketServices[hc.host] == nil {
-		websocketServices[hc.host] = make(map[string]*websocketServiceType)
+	hc.ws.websocketServicesLock.Lock()
+	defer hc.ws.websocketServicesLock.Unlock()
+	if hc.ws.websocketServices[hc.host] == nil {
+		hc.ws.websocketServices[hc.host] = make(map[string]*websocketServiceType)
 	}
-	websocketServices[hc.host][path] = ws
-	websocketServicesList = append(websocketServicesList, ws)
+	hc.ws.websocketServices[hc.host][path] = ws
+	hc.ws.websocketServicesList = append(hc.ws.websocketServicesList, ws)
 	return ws
 }
 
@@ -407,7 +403,7 @@ func makeCachedService(matchedService any) (*webServiceType, error) {
 	}
 
 	targetService := &webServiceType{
-		paramsNum:            funcType.NumIn(),
+		paramsNum:           funcType.NumIn(),
 		inIndex:             -1,
 		headersIndex:        -1,
 		requestIndex:        -1,
@@ -452,10 +448,14 @@ func makeCachedService(matchedService any) (*webServiceType, error) {
 
 // GetInject 获取注入对象
 func GetInject(dataType reflect.Type) any {
-	if obj, exists := injectObjects[dataType]; exists {
+	return DefaultServer.GetInject(dataType)
+}
+
+func (ws *webServer) GetInject(dataType reflect.Type) any {
+	if obj, exists := ws.injectObjects[dataType]; exists {
 		return obj
 	}
-	if factory, exists := injectFunctions[dataType]; exists {
+	if factory, exists := ws.injectFunctions[dataType]; exists {
 		return factory()
 	}
 	return nil
@@ -465,7 +465,7 @@ func GetInject(dataType reflect.Type) any {
 func GetInjectT[T any]() T {
 	var zero T
 	t := reflect.TypeOf((*T)(nil)).Elem()
-	obj := GetInject(t)
+	obj := DefaultServer.GetInject(t)
 	if obj == nil {
 		return zero
 	}

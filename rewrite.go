@@ -42,22 +42,14 @@ func parseRewriteRule(fromPath, toPath, to string) *rewriteType {
 func (hc *HostContext) Rewrite(path string, to string) *HostContext {
 	s := parseRewriteRule(path, "", to)
 
-	hostPoliciesLock.Lock()
-	defer hostPoliciesLock.Unlock()
-	codeRewrites[hc.host] = append(codeRewrites[hc.host], s)
-	rebuildRewritesUnderLock(hc.host)
+	hc.ws.hostPoliciesLock.Lock()
+	defer hc.ws.hostPoliciesLock.Unlock()
+	hc.ws.codeRewrites[hc.host] = append(hc.ws.codeRewrites[hc.host], s)
+	hc.ws.rebuildRewritesUnderLock(hc.host)
 	return hc
 }
 
-func rebuildRewritesUnderLock(host string) {
-	var combined []*rewriteType
-	combined = append(combined, codeRewrites[host]...)
-	combined = append(combined, fileRewrites[host]...)
-	combined = append(combined, dynamicRewrites[host]...)
-	hostRewrites[host] = combined
-}
-
-func processRewrite(request *Request, response *Response, logger *log.Logger) bool {
+func (ws *webServer) processRewrite(request *Request, response *Response, logger *log.Logger) bool {
 	host := request.Host
 	hostOnly, port, _ := strings.Cut(host, ":")
 	hosts := []string{host}
@@ -66,8 +58,8 @@ func processRewrite(request *Request, response *Response, logger *log.Logger) bo
 	}
 	hosts = append(hosts, "*")
 
-	hostPoliciesLock.RLock()
-	defer hostPoliciesLock.RUnlock()
+	ws.hostPoliciesLock.RLock()
+	defer ws.hostPoliciesLock.RUnlock()
 
 	requestPath := request.RequestURI
 	queryString := ""
@@ -77,7 +69,7 @@ func processRewrite(request *Request, response *Response, logger *log.Logger) bo
 	}
 
 	for _, h := range hosts {
-		rewrites, exists := hostRewrites[h]
+		rewrites, exists := ws.hostRewrites[h]
 		if !exists {
 			continue
 		}
@@ -144,13 +136,17 @@ type RewriteRule struct {
 
 // ReplaceRewrites 使用 Copy-on-Write 机制原子地替换指定 host 下的动态重写规则。
 func ReplaceRewrites(host string, rules []RewriteRule) {
+	DefaultServer.ReplaceRewrites(host, rules)
+}
+
+func (ws *webServer) ReplaceRewrites(host string, rules []RewriteRule) {
 	newRewrites := make([]*rewriteType, 0, len(rules))
 	for _, r := range rules {
 		newRewrites = append(newRewrites, parseRewriteRule(r.Path, r.ToPath, r.To))
 	}
 
-	hostPoliciesLock.Lock()
-	defer hostPoliciesLock.Unlock()
-	dynamicRewrites[host] = newRewrites
-	rebuildRewritesUnderLock(host)
+	ws.hostPoliciesLock.Lock()
+	defer ws.hostPoliciesLock.Unlock()
+	ws.dynamicRewrites[host] = newRewrites
+	ws.rebuildRewritesUnderLock(host)
 }

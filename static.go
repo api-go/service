@@ -7,19 +7,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
-)
-
-var (
-	statics           = make(map[string]*string)
-	staticsByHost     = make(map[string]map[string]*string)
-	
-	codeStatics       = make(map[string]map[string]*string)
-	fileStatics       = make(map[string]map[string]*string)
-	dynamicStatics    = make(map[string]map[string]*string)
-
-	staticsByHostLock = sync.RWMutex{}
 )
 
 // Static 注册静态文件目录
@@ -28,35 +16,47 @@ func (hc *HostContext) Static(path, rootPath string) *HostContext {
 	if host == "*" {
 		host = ""
 	}
-	StaticByHost(path, rootPath, host)
+	hc.ws.StaticByHost(path, rootPath, host)
 	return hc
 }
 
 // Static 注册静态文件目录 (使用默认 Host "*")
 func Static(path, rootPath string) {
-	Host("*").Static(path, rootPath)
+	DefaultServer.Static(path, rootPath)
+}
+
+func (ws *webServer) Static(path, rootPath string) {
+	ws.Host("*").Static(path, rootPath)
 }
 
 // StaticByHost 为指定域名注册静态文件目录
 func StaticByHost(path, rootPath, host string) {
+	DefaultServer.StaticByHost(path, rootPath, host)
+}
+
+func (ws *webServer) StaticByHost(path, rootPath, host string) {
 	if !filepath.IsAbs(rootPath) {
 		if absPath, err := filepath.Abs(rootPath); err == nil {
 			rootPath = absPath
 		}
 	}
 
-	staticsByHostLock.Lock()
-	defer staticsByHostLock.Unlock()
+	ws.staticsByHostLock.Lock()
+	defer ws.staticsByHostLock.Unlock()
 
-	if codeStatics[host] == nil {
-		codeStatics[host] = make(map[string]*string)
+	if ws.codeStatics[host] == nil {
+		ws.codeStatics[host] = make(map[string]*string)
 	}
-	codeStatics[host][path] = &rootPath
-	rebuildStaticsUnderLock(host)
+	ws.codeStatics[host][path] = &rootPath
+	ws.rebuildStaticsUnderLock(host)
 }
 
 // ReplaceStatics 使用 Copy-on-Write 机制原子地替换指定 host 下的动态静态目录规则
 func ReplaceStatics(host string, config map[string]string) {
+	DefaultServer.ReplaceStatics(host, config)
+}
+
+func (ws *webServer) ReplaceStatics(host string, config map[string]string) {
 	newStatics := make(map[string]*string, len(config))
 	for path, rootPath := range config {
 		rp := rootPath
@@ -68,50 +68,29 @@ func ReplaceStatics(host string, config map[string]string) {
 		newStatics[path] = &rp
 	}
 
-	staticsByHostLock.Lock()
-	defer staticsByHostLock.Unlock()
-	
-	dynamicStatics[host] = newStatics
-	rebuildStaticsUnderLock(host)
+	ws.staticsByHostLock.Lock()
+	defer ws.staticsByHostLock.Unlock()
+
+	ws.dynamicStatics[host] = newStatics
+	ws.rebuildStaticsUnderLock(host)
 }
 
-func rebuildStaticsUnderLock(host string) {
-	combined := make(map[string]*string)
-	
-	// 合并三种来源的静态路由
-	for k, v := range codeStatics[host] {
-		combined[k] = v
-	}
-	for k, v := range fileStatics[host] {
-		combined[k] = v
-	}
-	for k, v := range dynamicStatics[host] {
-		combined[k] = v
-	}
-	
-	if host == "" {
-		statics = combined
-	} else {
-		staticsByHost[host] = combined
-	}
-}
-
-func getStaticFilePath(requestPath, host string) string {
-	staticsByHostLock.RLock()
-	defer staticsByHostLock.RUnlock()
+func (ws *webServer) getStaticFilePath(requestPath, host string) string {
+	ws.staticsByHostLock.RLock()
+	defer ws.staticsByHostLock.RUnlock()
 
 	// 优先匹配指定域名的配置
-	if hostConfig, exists := staticsByHost[host]; exists {
-		if filePath := findMatchedPath(hostConfig, requestPath); filePath != "" {
+	if hostConfig, exists := ws.staticsByHost[host]; exists {
+		if filePath := ws.findMatchedPath(hostConfig, requestPath); filePath != "" {
 			return filePath
 		}
 	}
 
 	// 匹配全局配置
-	return findMatchedPath(statics, requestPath)
+	return ws.findMatchedPath(ws.statics, requestPath)
 }
 
-func findMatchedPath(config map[string]*string, requestPath string) string {
+func (ws *webServer) findMatchedPath(config map[string]*string, requestPath string) string {
 	for urlPath, rootPath := range config {
 		if strings.HasPrefix(requestPath, urlPath) {
 			return filepath.Join(*rootPath, requestPath[len(urlPath):])
@@ -120,8 +99,8 @@ func findMatchedPath(config map[string]*string, requestPath string) string {
 	return ""
 }
 
-func processStatic(requestPath string, request *Request, response *Response, logger *log.Logger) bool {
-	filePath := getStaticFilePath(requestPath, request.Host)
+func (ws *webServer) processStatic(requestPath string, request *Request, response *Response, logger *log.Logger) bool {
+	filePath := ws.getStaticFilePath(requestPath, request.Host)
 	if filePath == "" {
 		return false
 	}
@@ -133,7 +112,12 @@ func processStatic(requestPath string, request *Request, response *Response, log
 
 	if info.IsDir {
 		// 自动查找索引文件
-		for _, indexFile := range Config.IndexFiles {
+		indexFiles := ws.Config.IndexFiles
+		if len(indexFiles) == 0 {
+			indexFiles = []string{"index.html", "index.htm"}
+		}
+		
+		for _, indexFile := range indexFiles {
 			f := filepath.Join(filePath, indexFile)
 			if i := file.GetFileInfo(f); i != nil && !i.IsDir {
 				filePath = f

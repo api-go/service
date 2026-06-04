@@ -14,8 +14,8 @@ func TestServeHTTP(t *testing.T) {
 	}
 	Host("*").POST("/hello", handler).Auth(0).Memo("say hello")
 
-	rh := &RouteHandler{}
-	
+	rh := &RouteHandler{ws: DefaultServer}
+
 	// 模拟请求
 	req := httptest.NewRequest("POST", "/hello", strings.NewReader(`{"name":"Star"}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -34,7 +34,7 @@ func TestServeHTTP(t *testing.T) {
 }
 
 func TestServeHTTP_404(t *testing.T) {
-	rh := &RouteHandler{}
+	rh := &RouteHandler{ws: DefaultServer}
 	req := httptest.NewRequest("GET", "/notfound", nil)
 	w := httptest.NewRecorder()
 
@@ -54,7 +54,7 @@ func TestServeHTTP_VerifyFailed(t *testing.T) {
 	}
 	Host("*").POST("/verify", handler).Auth(0).Memo("test verify")
 
-	rh := &RouteHandler{}
+	rh := &RouteHandler{ws: DefaultServer}
 	req := httptest.NewRequest("POST", "/verify", strings.NewReader(`{"age":10}`))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -71,7 +71,7 @@ func TestServeHTTP_Panic(t *testing.T) {
 		panic("intentional panic")
 	})
 
-	rh := &RouteHandler{}
+	rh := &RouteHandler{ws: DefaultServer}
 	req := httptest.NewRequest("GET", "/panic", nil)
 	w := httptest.NewRecorder()
 

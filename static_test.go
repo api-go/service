@@ -12,15 +12,15 @@ func TestStaticService(t *testing.T) {
 	// 创建临时测试目录和文件
 	tempDir, _ := os.MkdirTemp("", "static_test")
 	defer os.RemoveAll(tempDir)
-	
+
 	testFile := filepath.Join(tempDir, "index.html")
 	os.WriteFile(testFile, []byte("<h1>Static Page</h1>"), 0644)
 
 	// 注册静态目录
 	Static("/ui", tempDir)
 
-	rh := &RouteHandler{}
-	
+	rh := &RouteHandler{ws: DefaultServer}
+
 	// 测试成功访问
 	req := httptest.NewRequest("GET", "/ui/index.html", nil)
 	w := httptest.NewRecorder()
@@ -52,7 +52,7 @@ func TestHostStaticService(t *testing.T) {
 	// 注册域名特定静态文件服务
 	Host("example.com").Static("/host-ui", tempDir)
 
-	rh := &RouteHandler{}
+	rh := &RouteHandler{ws: DefaultServer}
 
 	// 1. 匹配域名访问
 	req1 := httptest.NewRequest("GET", "/host-ui/index.html", nil)
@@ -77,4 +77,3 @@ func TestHostStaticService(t *testing.T) {
 		t.Errorf("Expected 404 for mismatched host, got %d", w2.Code)
 	}
 }
-

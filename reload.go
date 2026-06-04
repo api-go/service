@@ -5,24 +5,30 @@ import (
 	"sync"
 )
 
-var (
-	reloadHooks []func() error
-	reloadLock  sync.RWMutex
-)
+type reloadHook struct {
+	hooks []func() error
+	lock  sync.RWMutex
+}
+
+var globalReloadHook = &reloadHook{}
 
 // OnReload 注册一个在接收到 SIGHUP 信号时触发的重新加载钩子
 func OnReload(handler func() error) {
-	reloadLock.Lock()
-	defer reloadLock.Unlock()
-	reloadHooks = append(reloadHooks, handler)
+	DefaultServer.OnReload(handler)
+}
+
+func (ws *webServer) OnReload(handler func() error) {
+	globalReloadHook.lock.Lock()
+	defer globalReloadHook.lock.Unlock()
+	globalReloadHook.hooks = append(globalReloadHook.hooks, handler)
 }
 
 // triggerReload 触发所有注册的重新加载钩子
-func triggerReload() error {
-	reloadLock.RLock()
-	hooks := make([]func() error, len(reloadHooks))
-	copy(hooks, reloadHooks)
-	reloadLock.RUnlock()
+func (ws *webServer) triggerReload() error {
+	globalReloadHook.lock.RLock()
+	hooks := make([]func() error, len(globalReloadHook.hooks))
+	copy(hooks, globalReloadHook.hooks)
+	globalReloadHook.lock.RUnlock()
 
 	for _, hook := range hooks {
 		if err := hook(); err != nil {

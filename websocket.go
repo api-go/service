@@ -59,7 +59,7 @@ func Upgrade(response *Response, request *Request) (*WebSocketConn, error) {
 	return &WebSocketConn{Conn: conn}, nil
 }
 
-func doWebsocketService(ws *websocketServiceType, request *Request, response *Response, logger *log.Logger, object any) {
+func (ws *webServer) doWebsocketService(wsc *websocketServiceType, request *Request, response *Response, logger *log.Logger, object any) {
 	wsConn, err := Upgrade(response, request)
 	if err != nil {
 		logger.Error("websocket upgrade failed", "error", err.Error())
@@ -68,9 +68,9 @@ func doWebsocketService(ws *websocketServiceType, request *Request, response *Re
 	defer wsConn.Close()
 
 	// 调用业务处理函数，注入依赖
-	params := make([]reflect.Value, ws.funcType.NumIn())
+	params := make([]reflect.Value, wsc.funcType.NumIn())
 	for i := 0; i < len(params); i++ {
-		t := ws.funcType.In(i)
+		t := wsc.funcType.In(i)
 		if t == reflect.TypeOf(request) {
 			params[i] = reflect.ValueOf(request)
 		} else if t == reflect.TypeOf(logger) {
@@ -81,11 +81,11 @@ func doWebsocketService(ws *websocketServiceType, request *Request, response *Re
 			params[i] = reflect.ValueOf(wsConn.Conn)
 		} else if object != nil && reflect.TypeOf(object).AssignableTo(t) {
 			params[i] = reflect.ValueOf(object)
-		} else if obj := GetInject(t); obj != nil {
+		} else if obj := ws.GetInject(t); obj != nil {
 			params[i] = reflect.ValueOf(obj)
 		} else {
 			params[i] = reflect.New(t).Elem()
 		}
 	}
-	ws.funcValue.Call(params)
+	wsc.funcValue.Call(params)
 }

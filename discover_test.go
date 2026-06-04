@@ -25,17 +25,17 @@ func TestSmartStartup(t *testing.T) {
 	// Reset config
 	Config.Listen = ""
 	Config.App = "smart-test"
-	
+
 	as := AsyncStart()
 	if as.Addr == "" {
 		t.Fatal("Server address should not be empty")
 	}
-	
+
 	t.Logf("Server started on %s", as.Addr)
-	
+
 	if !as.useDiscover {
 		t.Error("Should have enabled discover")
 	}
-	
+
 	as.Stop()
 }

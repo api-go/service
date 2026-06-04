@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"regexp"
 	"strings"
 	"time"
@@ -77,24 +78,17 @@ func parseProxyRule(authLevel int, path, toApp, toPath string, to string) *proxy
 func (hc *HostContext) Proxy(authLevel int, path string, to string) *HostContext {
 	p := parseProxyRule(authLevel, path, "", "", to)
 
-	hostPoliciesLock.Lock()
-	defer hostPoliciesLock.Unlock()
-	codeProxies[hc.host] = append(codeProxies[hc.host], p)
-	rebuildProxiesUnderLock(hc.host)
+	hc.ws.hostPoliciesLock.Lock()
+	defer hc.ws.hostPoliciesLock.Unlock()
+	if hc.ws.codeProxies[hc.host] == nil {
+		hc.ws.codeProxies[hc.host] = make([]*proxyType, 0)
+	}
+	hc.ws.codeProxies[hc.host] = append(hc.ws.codeProxies[hc.host], p)
+	hc.ws.rebuildProxiesUnderLock(hc.host)
 	return hc
 }
 
-func rebuildProxiesUnderLock(host string) {
-	var combined []*proxyType
-	combined = append(combined, codeProxies[host]...)
-	combined = append(combined, fileProxies[host]...)
-	combined = append(combined, dynamicProxies[host]...)
-	hostProxies[host] = combined
-}
-
-var httpClientPool *gohttp.Client
-
-func findProxy(request *Request) (int, *string, *string, string) {
+func (ws *webServer) findProxy(request *Request) (int, *string, *string, string) {
 	host := request.Host
 	hostOnly, port, _ := strings.Cut(host, ":")
 	hosts := []string{host}
@@ -110,11 +104,11 @@ func findProxy(request *Request) (int, *string, *string, string) {
 		requestPath = requestPath[:pos]
 	}
 
-	hostPoliciesLock.RLock()
-	defer hostPoliciesLock.RUnlock()
+	ws.hostPoliciesLock.RLock()
+	defer ws.hostPoliciesLock.RUnlock()
 
 	for _, h := range hosts {
-		proxies, exists := hostProxies[h]
+		proxies, exists := ws.hostProxies[h]
 		if !exists {
 			continue
 		}
@@ -151,15 +145,15 @@ func findProxy(request *Request) (int, *string, *string, string) {
 	return 0, nil, nil, ""
 }
 
-func processProxy(request *Request, response *Response, logger *log.Logger) bool {
-	authLevel, proxyToApp, proxyToPath, foundHost := findProxy(request)
+func (ws *webServer) processProxy(request *Request, response *Response, logger *log.Logger) bool {
+	authLevel, proxyToApp, proxyToPath, foundHost := ws.findProxy(request)
 
 	if proxyToApp == nil || proxyToPath == nil || *proxyToApp == "" || *proxyToPath == "" {
 		return false
 	}
 
 	// 鉴权
-	pass, obj := checkAuthForProxy(authLevel, request, response, logger)
+	pass, obj := ws.checkAuthForProxy(authLevel, request, response, logger)
 	if !pass {
 		if !response.changed {
 			response.WriteHeader(http.StatusForbidden)
@@ -174,19 +168,16 @@ func processProxy(request *Request, response *Response, logger *log.Logger) bool
 
 	if strings.Contains(app, "://") {
 		// 直接 URL 代理
-		if httpClientPool == nil {
-			httpClientPool = gohttp.NewClient(time.Duration(Config.RedirectTimeout) * time.Millisecond)
-		}
-		res := httpClientPool.ManualDoByRequest(request.Request, request.Method, app+path, request.Body)
+		res := ws.getHttpClient().ManualDoByRequest(request.Request, request.Method, app+path, request.Body)
 		copyResponse(res, response, logger)
 	} else {
 		// Discover 代理
-		if GlobalDiscoverer == nil {
-			logger.Error("proxy failed: GlobalDiscoverer is not initialized")
+		if ws.discoverer == nil {
+			logger.Error("proxy failed: Discoverer is not initialized")
 			response.WriteHeader(http.StatusBadGateway)
 			return true
 		}
-		caller := GlobalDiscoverer.NewCaller(request.Request, logger)
+		caller := ws.discoverer.NewCaller(request.Request, logger)
 		caller.NoBody = true
 		res, _ := caller.ManualDoWithNode(request.Method, app, "", path, request.Body)
 		copyResponse(res, response, logger)
@@ -195,10 +186,22 @@ func processProxy(request *Request, response *Response, logger *log.Logger) bool
 	return true
 }
 
-func checkAuthForProxy(authLevel int, request *Request, response *Response, logger *log.Logger) (bool, any) {
-	ac := webAuthCheckers[authLevel]
+func (ws *webServer) getHttpClient() *gohttp.Client {
+	// 尝试从注入对象获取
+	if obj := ws.GetInject(reflect.TypeOf(&gohttp.Client{})); obj != nil {
+		return obj.(*gohttp.Client)
+	}
+	timeout := time.Duration(ws.Config.RedirectTimeout) * time.Millisecond
+	if timeout <= 0 {
+		timeout = 30 * time.Second
+	}
+	return gohttp.NewClient(timeout)
+}
+
+func (ws *webServer) checkAuthForProxy(authLevel int, request *Request, response *Response, logger *log.Logger) (bool, any) {
+	ac := ws.webAuthCheckers[authLevel]
 	if ac == nil {
-		ac = webAuthChecker
+		ac = ws.webAuthChecker
 	}
 	if ac == nil {
 		return true, nil
@@ -239,13 +242,17 @@ type ProxyRule struct {
 
 // ReplaceProxies 使用全量指针替换的方式 (Copy-on-Write) 无缝更新指定 host 的动态代理规则。
 func ReplaceProxies(host string, rules []ProxyRule) {
+	DefaultServer.ReplaceProxies(host, rules)
+}
+
+func (ws *webServer) ReplaceProxies(host string, rules []ProxyRule) {
 	newProxies := make([]*proxyType, 0, len(rules))
 	for _, r := range rules {
 		newProxies = append(newProxies, parseProxyRule(r.AuthLevel, r.Path, r.ToApp, r.ToPath, r.To))
 	}
 
-	hostPoliciesLock.Lock()
-	defer hostPoliciesLock.Unlock()
-	dynamicProxies[host] = newProxies
-	rebuildProxiesUnderLock(host)
+	ws.hostPoliciesLock.Lock()
+	defer ws.hostPoliciesLock.Unlock()
+	ws.dynamicProxies[host] = newProxies
+	ws.rebuildProxiesUnderLock(host)
 }

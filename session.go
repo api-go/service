@@ -103,7 +103,7 @@ func (s *Session) Save() error {
 	if s.conn == nil {
 		now := time.Now().Unix()
 		s.data["_time"] = now
-		
+
 		// 复制一份数据存储，防止外部修改
 		saveData := make(map[string]any)
 		for k, v := range s.data {
@@ -112,7 +112,7 @@ func (s *Session) Save() error {
 
 		memorySessionDataLock.Lock()
 		memorySessionData[s.id] = saveData
-		
+
 		clearTimeDiff := now - lastSessionClearTime
 		if clearTimeDiff > 60 {
 			lastSessionClearTime = now
@@ -198,7 +198,7 @@ func (s *Session) AuthFuncs(needFuncs ...string) bool {
 					break
 				}
 			}
-			
+
 			// 如果是非必需权限命中，或者必需权限已全部命中且至少命中了一个非必需权限（如果有）
 			if (normalAuthOk > 0 || requiredAuthTotal == len(needFuncs)) && requiredAuthOk == requiredAuthTotal {
 				isOk = true
