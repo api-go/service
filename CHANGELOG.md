@@ -1,5 +1,8 @@
 # CHANGELOG - go/service
 
+## v1.5.5 (2026-06-05)
+- **依赖同步**: 全量对齐至 `@go` 基础设施最新版本（`log v1.5.4`, `starter v1.5.2`, `db v1.5.2`）。
+
 ## v1.5.4 (2026-06-05)
 - **优化: 生命周期日志剥离**:
   - 彻底移除了 `WebServer` 内部冗余的 `starting / stopping / stopped` 控制台日志输出。
