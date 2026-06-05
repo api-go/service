@@ -7,6 +7,7 @@ import (
 	"apigo.cc/go/redis"
 	"apigo.cc/go/safe"
 	"apigo.cc/go/starter"
+	"apigo.cc/go/watch"
 	"context"
 	"fmt"
 	"golang.org/x/net/http2"
@@ -91,6 +92,10 @@ type webServer struct {
 
 	// 性能优化：标记是否有输出过滤器
 	hasOutFilter bool
+
+	// Web 开发模式配置
+	webDevEnabled bool
+	webDevConfig  watch.Config
 }
 
 // DefaultServer 全局单例服务实例
@@ -301,6 +306,10 @@ func (ws *webServer) Start(ctx context.Context, logger *log.Logger) error {
 
 	if !strings.Contains(addr, ":") {
 		addr = ":" + addr
+	}
+
+	if ws.webDevEnabled {
+		ws.initWebDev(logger)
 	}
 
 	appName := ws.Config.App

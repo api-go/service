@@ -493,18 +493,21 @@ var webDevOnce sync.Once
 
 // EnableWebDev 开启 Web 开发模式，支持自动刷新
 func EnableWebDev(config watch.Config) {
+	DefaultServer.webDevEnabled = true
+	DefaultServer.webDevConfig = config
+}
+
+func (ws *webServer) initWebDev(logger *log.Logger) {
 	webDevOnce.Do(func() {
-		log.DefaultLogger.Warning("Web Development Mode Enabled. This should NOT be used in production environment.")
+		logger.Warning("Web Development Mode Enabled. This should NOT be used in production environment.")
 		onWatchConn := map[string]*WebSocketConn{}
 		onWatchLock := sync.Mutex{}
 
 		// 1. 注册 WebSocket 服务
-		RegisterWebsocket("/_watch", func(request *Request, conn *WebSocketConn, logger *log.Logger) {
+		ws.RegisterWebsocket("/_watch", func(request *Request, conn *WebSocketConn, logger *log.Logger) {
 			onWatchLock.Lock()
 			onWatchConn[request.Id] = conn
 			onWatchLock.Unlock()
-
-			logger.Info("watch ws connected", "id", request.Id)
 
 			// 保持连接，处理消息 (如 ping)
 			for {
@@ -516,11 +519,10 @@ func EnableWebDev(config watch.Config) {
 			onWatchLock.Lock()
 			delete(onWatchConn, request.Id)
 			onWatchLock.Unlock()
-			logger.Info("watch ws disconnected", "id", request.Id)
 		})
 
 		// 2. 启动文件监听
-		watcher, err := watch.Start(config, func(e *watch.Event) {
+		watcher, err := watch.Start(ws.webDevConfig, func(e *watch.Event) {
 			onWatchLock.Lock()
 			defer onWatchLock.Unlock()
 			for _, conn := range onWatchConn {
@@ -529,12 +531,12 @@ func EnableWebDev(config watch.Config) {
 		})
 
 		if err != nil {
-			log.DefaultLogger.Error("failed to start watch for EnableWebDev", "error", err.Error())
+			logger.Error("failed to start watch for EnableWebDev", "error", err.Error())
 			return
 		}
 
 		// 3. 注册停机钩子
-		AddShutdownHook(func() {
+		ws.AddShutdownHook(func() {
 			watcher.Stop()
 			onWatchLock.Lock()
 			for _, conn := range onWatchConn {
@@ -544,7 +546,7 @@ func EnableWebDev(config watch.Config) {
 		})
 
 		// 4. 注册输出过滤器进行注入
-		SetOutFilter(func(in map[string]any, request *Request, response *Response, out any, logger *log.Logger) (newOut any, isOver bool) {
+		ws.SetOutFilter(func(in map[string]any, request *Request, response *Response, out any, logger *log.Logger) (newOut any, isOver bool) {
 			contentType := response.Header().Get("Content-Type")
 			var outStr string
 

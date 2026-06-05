@@ -1,6 +1,7 @@
 package service
 
 import (
+	"apigo.cc/go/log"
 	"apigo.cc/go/watch"
 	"github.com/gorilla/websocket"
 	"net/http/httptest"
@@ -56,6 +57,9 @@ func TestEnableWebDev(t *testing.T) {
 	EnableWebDev(watch.Config{
 		Paths: []string{"."},
 	})
+
+	// 必须手动调用 initWebDev 或触发 Start，因为现在的逻辑是延迟初始化的
+	DefaultServer.initWebDev(log.DefaultLogger)
 
 	// 2. 准备一个真实的静态 HTML 文件
 	staticDir := "test_static"
