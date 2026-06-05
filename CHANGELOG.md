@@ -1,5 +1,11 @@
 # CHANGELOG - go/service
 
+## v1.5.4 (2026-06-05)
+- **优化: 生命周期日志剥离**:
+  - 彻底移除了 `WebServer` 内部冗余的 `starting / stopping / stopped` 控制台日志输出。
+  - **权责对齐**: 服务的生命周期审计现已全量交由 `apigo.cc/go/starter (v1.5.2)` 接管。
+  - **专注输出**: `service` 模块现在仅负责输出关键的监听信息（如 `starting listener addr:[::]:8001 proto:http`），并自动继承 `starter` 分配的长 TraceID 建立链路关联。
+
 ## v1.5.3 (2026-06-04)
 - **新特性**:
   - `Static` 静态文件服务增加默认索引文件识别：当请求目录时，若未配置 `IndexFiles`，会自动尝试匹配 `index.html` 或 `index.htm`。
