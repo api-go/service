@@ -7,6 +7,7 @@ import (
 	"apigo.cc/go/timer"
 	"io"
 	"net/http"
+	"net/url"
 	"reflect"
 	"runtime/debug"
 	"strings"
@@ -148,7 +149,7 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 3. 路由匹配
-	path := r.URL.Path
+	path, _ := url.PathUnescape(r.URL.Path)
 	host := r.Host
 
 	// 处理静态文件

@@ -5,6 +5,7 @@ import (
 	"apigo.cc/go/log"
 	"mime"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"time"
@@ -76,6 +77,7 @@ func (ws *webServer) ReplaceStatics(host string, config map[string]string) {
 }
 
 func (ws *webServer) getStaticFilePath(requestPath, host string) string {
+	requestPath, _ = url.PathUnescape(requestPath)
 	ws.staticsByHostLock.RLock()
 	defer ws.staticsByHostLock.RUnlock()
 
