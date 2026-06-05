@@ -19,13 +19,15 @@ type Response struct {
 	dontLog200    bool
 	dontLogArgs   []string
 	ProxyHeader   *http.Header
+	server        *webServer
 }
 
 // NewResponse 创建 Response 包装
-func NewResponse(writer http.ResponseWriter) *Response {
+func NewResponse(writer http.ResponseWriter, server *webServer) *Response {
 	return &Response{
 		Writer: writer,
 		Code:   http.StatusOK,
+		server: server,
 	}
 }
 
@@ -42,9 +44,27 @@ func (r *Response) Write(bytes []byte) (int, error) {
 	r.checkWriteHeader()
 	r.changed = true
 	r.outLen += len(bytes)
-	if r.Code != http.StatusOK && len(r.body) < 4096 {
+
+	// 如果有输出过滤器，我们必须先缓冲，不能直接写入网线，否则会导致重复输出
+	if r.server != nil && r.server.hasOutFilter {
+		r.body = append(r.body, bytes...)
+		return len(bytes), nil
+	}
+
+	// 即使没有过滤器，非 200 状态码也进行缓冲以便日志记录
+	if r.Code != http.StatusOK {
 		r.body = append(r.body, bytes...)
 	}
+
+	if r.ProxyHeader != nil {
+		r.copyProxyHeader()
+	}
+	return r.Writer.Write(bytes)
+}
+
+// PhysicalWrite 物理写入网线，绕过过滤器缓冲逻辑
+func (r *Response) PhysicalWrite(bytes []byte) (int, error) {
+	r.checkWriteHeader()
 	if r.ProxyHeader != nil {
 		r.copyProxyHeader()
 	}
@@ -98,6 +118,20 @@ func (r *Response) Flush() {
 // GetStatusCode 获取当前状态码
 func (r *Response) GetStatusCode() int {
 	return r.Code
+}
+
+// GetBody 获取响应内容
+func (r *Response) GetBody() []byte {
+	return r.body
+}
+
+// ClearBody 清空响应内容缓冲区 (用于过滤器替换内容)
+func (r *Response) ClearBody() {
+	r.body = nil
+	r.outLen = 0
+	// 注意：这里我们不重置 headerWritten 和 Code，因为 Header 已经发出去了。
+	// 但是在某些测试环境下（如 httptest.Recorder），我们可以尝试“假装”没写过。
+	// 实际上，生产环境下 Header 发出去就收不回来了，所以注入只能发生在 Body 层面。
 }
 
 // DontLog200 标记不记录 200 状态码的日志

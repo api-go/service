@@ -84,6 +84,13 @@ type webServer struct {
 	usedClientAppKey string
 	usedSessionIdKey string
 	sessionIdMaker   func() string
+
+	// 停机钩子
+	shutdownHooks     []func()
+	shutdownHooksLock sync.Mutex
+
+	// 性能优化：标记是否有输出过滤器
+	hasOutFilter bool
 }
 
 // DefaultServer 全局单例服务实例
@@ -411,6 +418,15 @@ func (ws *webServer) Start(ctx context.Context, logger *log.Logger) error {
 // Stop 停止服务，实现 starter.Service 接口
 func (ws *webServer) Stop(ctx context.Context) error {
 	ws.running = false
+
+	// 执行停机钩子 (反序)
+	ws.shutdownHooksLock.Lock()
+	for i := len(ws.shutdownHooks) - 1; i >= 0; i-- {
+		ws.shutdownHooks[i]()
+	}
+	ws.shutdownHooks = nil
+	ws.shutdownHooksLock.Unlock()
+
 	if ws.discoverer != nil {
 		ws.discoverer.Stop()
 	}

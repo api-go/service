@@ -1,5 +1,14 @@
 # CHANGELOG - go/service
 
+## v1.5.6 (2026-06-05)
+- **新特性: EnableWebDev 支持**:
+  - 引入了 `service.EnableWebDev(config watch.Config)`，支持自动刷新页面的开发模式。
+  - **WebSocket 同步**: 自动注册 `/_watch` 服务，与文件监听器协同工作。
+  - **智能 HTML 注入**: 采用 `OutFilter` 在 HTML 响应末尾精准注入 WebSocket 重连脚本，支持静态文件与动态服务。
+  - **性能优化**: 仅在开启开发模式时启用响应缓冲，生产环境无任何性能损失。
+- **基础设施**: 增加包级 `AddShutdownHook` 支持，提供更优雅的资源回收机制。
+- **依赖同步**: 升级至 `log v1.5.5`，对齐不带堆栈的 Warning 规范。
+
 ## v1.5.5 (2026-06-05)
 - **依赖同步**: 全量对齐至 `@go` 基础设施最新版本（`log v1.5.4`, `starter v1.5.2`, `db v1.5.2`）。
 

@@ -2,10 +2,13 @@ package service
 
 import (
 	"apigo.cc/go/log"
+	"apigo.cc/go/watch"
 	"errors"
+	"math"
 	"reflect"
 	"regexp"
 	"strings"
+	"sync"
 )
 
 // webServiceType 内部存储的服务元数据
@@ -102,13 +105,27 @@ func (ws *webServer) SetInFilter(filter func(in *map[string]any, request *Reques
 	ws.inFilters = append(ws.inFilters, filter)
 }
 
+// AddShutdownHook 增加停机钩子
+func AddShutdownHook(hook func()) {
+	DefaultServer.AddShutdownHook(hook)
+}
+
+func (ws *webServer) AddShutdownHook(hook func()) {
+	ws.shutdownHooksLock.Lock()
+	defer ws.shutdownHooksLock.Unlock()
+	ws.shutdownHooks = append(ws.shutdownHooks, hook)
+}
+
 // SetOutFilter 设置后置过滤器
 func SetOutFilter(filter func(in map[string]any, request *Request, response *Response, out any, logger *log.Logger) (newOut any, isOver bool)) {
 	DefaultServer.SetOutFilter(filter)
 }
 
 func (ws *webServer) SetOutFilter(filter func(in map[string]any, request *Request, response *Response, out any, logger *log.Logger) (newOut any, isOver bool)) {
+	ws.webServicesLock.Lock()
+	defer ws.webServicesLock.Unlock()
 	ws.outFilters = append(ws.outFilters, filter)
+	ws.hasOutFilter = true
 }
 
 // HostContext 提供流式服务注册能力
@@ -471,3 +488,146 @@ func GetInjectT[T any]() T {
 	}
 	return obj.(T)
 }
+
+var webDevOnce sync.Once
+
+// EnableWebDev 开启 Web 开发模式，支持自动刷新
+func EnableWebDev(config watch.Config) {
+	webDevOnce.Do(func() {
+		log.DefaultLogger.Warning("Web Development Mode Enabled. This should NOT be used in production environment.")
+		onWatchConn := map[string]*WebSocketConn{}
+		onWatchLock := sync.Mutex{}
+
+		// 1. 注册 WebSocket 服务
+		RegisterWebsocket("/_watch", func(request *Request, conn *WebSocketConn, logger *log.Logger) {
+			onWatchLock.Lock()
+			onWatchConn[request.Id] = conn
+			onWatchLock.Unlock()
+
+			logger.Info("watch ws connected", "id", request.Id)
+
+			// 保持连接，处理消息 (如 ping)
+			for {
+				if _, err := conn.ReadString(); err != nil {
+					break
+				}
+			}
+
+			onWatchLock.Lock()
+			delete(onWatchConn, request.Id)
+			onWatchLock.Unlock()
+			logger.Info("watch ws disconnected", "id", request.Id)
+		})
+
+		// 2. 启动文件监听
+		watcher, err := watch.Start(config, func(e *watch.Event) {
+			onWatchLock.Lock()
+			defer onWatchLock.Unlock()
+			for _, conn := range onWatchConn {
+				_ = conn.Send("reload")
+			}
+		})
+
+		if err != nil {
+			log.DefaultLogger.Error("failed to start watch for EnableWebDev", "error", err.Error())
+			return
+		}
+
+		// 3. 注册停机钩子
+		AddShutdownHook(func() {
+			watcher.Stop()
+			onWatchLock.Lock()
+			for _, conn := range onWatchConn {
+				_ = conn.Close()
+			}
+			onWatchLock.Unlock()
+		})
+
+		// 4. 注册输出过滤器进行注入
+		SetOutFilter(func(in map[string]any, request *Request, response *Response, out any, logger *log.Logger) (newOut any, isOver bool) {
+			contentType := response.Header().Get("Content-Type")
+			var outStr string
+
+			if out != nil {
+				switch v := out.(type) {
+				case string:
+					outStr = v
+				case []byte:
+					outStr = string(v)
+				}
+			}
+
+			if outStr == "" && response.changed {
+				outStr = string(response.GetBody())
+			}
+
+			if outStr == "" {
+				return nil, false
+			}
+
+			isHtml := strings.HasPrefix(contentType, "text/html")
+			if !isHtml && (contentType == "" || strings.HasPrefix(contentType, "text/plain")) {
+				// 检测内容前 100 字节是否包含 <html
+				checkLen := int(math.Min(float64(len(outStr)), 100))
+				if strings.Contains(strings.ToLower(outStr[0:checkLen]), "<html") {
+					isHtml = true
+				}
+			}
+
+			if isHtml {
+				if strings.Contains(outStr, "let _watchWS = null") {
+					return nil, false
+				}
+				// 注入自动刷新的代码
+				injectCode := `<script>
+	let _watchWS = null
+	let _watchWSConnection = false
+	let _watchWSIsFirst = true
+    function connect() {
+		_watchWSConnection = true
+        let ws = new WebSocket(location.protocol.replace('http', 'ws') + '//' + location.host + '/_watch')
+        ws.onopen = () => {
+			_watchWS = ws
+			_watchWSConnection = false
+			if( !_watchWSIsFirst ) location.reload()
+			_watchWSIsFirst = false
+		}
+        ws.onmessage = () => {
+			location.reload()
+		}
+        ws.onclose = () => {
+			_watchWS = null
+			_watchWSConnection = false
+		}
+    }
+	setInterval(()=>{
+		if(_watchWS!= null){
+			try{
+				_watchWS.send("ping")
+			}catch(err){
+				_watchWS = null
+				_watchWSConnection = false
+			}
+		} else if(!_watchWSConnection){
+			connect()
+		}
+	}, 1000)
+    connect()
+</script>`
+				// 仅替换最后一个 </html> 避免多个标签时的重复注入
+				lastIndex := strings.LastIndex(outStr, "</html>")
+				if lastIndex != -1 {
+					outStr = outStr[:lastIndex] + injectCode + outStr[lastIndex:]
+				} else {
+					outStr = outStr + injectCode
+				}
+
+				// 无论如何，只要我们提供了新的输出，就清空原始 Body，防止 handler 重复写入
+				response.ClearBody()
+				return []byte(outStr), false
+			}
+			return nil, false
+		})
+	})
+}
+

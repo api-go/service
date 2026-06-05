@@ -10,7 +10,7 @@ require (
 	apigo.cc/go/http v1.5.0
 	apigo.cc/go/id v1.5.0
 	apigo.cc/go/jsmod v1.5.0
-	apigo.cc/go/log v1.5.4
+	apigo.cc/go/log v1.5.5
 	apigo.cc/go/redis v1.5.0
 	apigo.cc/go/safe v1.5.0
 	apigo.cc/go/starter v1.5.2

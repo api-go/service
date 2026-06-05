@@ -33,15 +33,17 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	request := NewRequest(r)
 	request.Id = requestId
-	response := NewResponse(w)
+	response := NewResponse(w, ws)
 	response.Id = requestId
 	requestLogger := log.New(requestId)
 
 	// 0. 延迟处理日志与状态检查
 	var s *webServiceType
+	var wsc *websocketServiceType
 	var authLevel int
 	var priority int
 	var args = make(map[string]any)
+	var result any
 
 	defer func() {
 		// 捕捉 Panic
@@ -151,17 +153,15 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// 处理静态文件
 	if ws.processStatic(path, request, response, requestLogger) {
-		return
+		goto filter
 	}
 
-	var wsc *websocketServiceType
 	s, wsc = ws.findService(r.Method, host, path)
 
 	// 4. 参数解析 (Form & Body)
 	parseRequestArgs(request, args)
 
 	// 5. 前置过滤器
-	var result any
 	for _, filter := range ws.inFilters {
 		result = filter(&args, request, response, requestLogger)
 		if result != nil {
@@ -205,13 +205,18 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if s == nil && result == nil && !response.changed {
 		response.WriteHeader(http.StatusNotFound)
+		result = "404 page not found"
 	}
 
-	// 7. 后置过滤器
+filter:
+	// 7. 后置过滤器 (即使 response.changed 也要执行，比如静态文件的 HTML 注入)
 	for _, filter := range ws.outFilters {
 		newResult, done := filter(args, request, response, result, requestLogger)
 		if newResult != nil {
 			result = newResult
+			// 如果 response.changed 为 true，说明已经有内容写出了。
+			// 如果过滤器返回了非 nil 的 result，我们通常认为它想替换或追加内容。
+			// 特别是对于静态文件，如果我们清空了 body 并返回了新内容，result 就不再是 nil。
 		}
 		if done {
 			break
@@ -219,7 +224,19 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 8. 输出结果
-	outputResult(response, result)
+	if ws.hasOutFilter {
+		// 过滤器模式：所有内容都应该从 result 或 response.body 中写出
+		if result != nil {
+			outputResult(response, result)
+		} else if response.changed {
+			response.PhysicalWrite(response.body)
+		}
+	} else {
+		// 普通模式：result (业务返回值) 需要写出，而 response.changed (比如静态文件) 已经由 Response.Write 写过了
+		if result != nil {
+			outputResult(response, result)
+		}
+	}
 }
 
 func hostOnly(host string) string {
@@ -403,9 +420,13 @@ func outputResult(response *Response, result any) {
 	if contentType != "" && response.Header().Get("Content-Type") == "" {
 		response.Header().Set("Content-Type", contentType)
 	}
-	_, _ = response.Write(data)
-}
 
+	if response.server != nil && response.server.hasOutFilter {
+		response.PhysicalWrite(data)
+	} else {
+		_, _ = response.Write(data)
+	}
+}
 func (ws *webServer) handleClientKeys(request *Request, response *Response) {
 	// SessionId
 	if ws.usedSessionIdKey != "" {

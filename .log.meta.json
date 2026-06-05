@@ -878,17 +878,6 @@
       "Precision": 0,
       "WithoutKey": false,
       "Hide": false
-    },
-    {
-      "Index": 8,
-      "Name": "CallStacks",
-      "KeyName": "",
-      "AttachBefore": false,
-      "Color": "",
-      "Format": "",
-      "Precision": 0,
-      "WithoutKey": false,
-      "Hide": false
     }
   ]
 }
