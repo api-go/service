@@ -10,16 +10,31 @@ import (
 // Response 封装 http.ResponseWriter
 type Response struct {
 	Id            string
-	Writer        http.ResponseWriter
+	Writer        http.ResponseWriter `js:"-"`
 	Code          int
-	body          []byte
-	outLen        int
-	changed       bool
-	headerWritten bool
-	dontLog200    bool
-	dontLogArgs   []string
-	ProxyHeader   *http.Header
-	server        *webServer
+	body          []byte              `js:"-"`
+	outLen        int                 `js:"-"`
+	changed       bool                `js:"-"`
+	headerWritten bool                `js:"-"`
+	dontLog200    bool                `js:"-"`
+	dontLogArgs   []string            `js:"-"`
+	ProxyHeader   *http.Header        `js:"-"`
+	server        *webServer          `js:"-"`
+}
+
+func (r *Response) SetCookie(cookie *Cookie) {
+	if cookie == nil {
+		return
+	}
+	http.SetCookie(r.Writer, &http.Cookie{
+		Name:     cookie.Name,
+		Value:    cookie.Value,
+		Path:     cookie.Path,
+		Domain:   cookie.Domain,
+		MaxAge:   cookie.MaxAge,
+		Secure:   cookie.Secure,
+		HttpOnly: cookie.HttpOnly,
+	})
 }
 
 // NewResponse 创建 Response 包装
@@ -32,11 +47,11 @@ func NewResponse(writer http.ResponseWriter, server *webServer) *Response {
 }
 
 // Header 获取响应头部
-func (r *Response) Header() http.Header {
+func (r *Response) Header() *Header {
 	if r.ProxyHeader != nil {
-		return *r.ProxyHeader
+		return &Header{H: *r.ProxyHeader}
 	}
-	return r.Writer.Header()
+	return &Header{H: r.Writer.Header()}
 }
 
 // Write 写入响应内容

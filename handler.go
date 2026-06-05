@@ -85,7 +85,7 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			// 过滤响应头
 			respHeaders := make(map[string]string)
-			for k, v := range response.Header() {
+			for k, v := range response.Header().H {
 				respHeaders[k] = strings.Join(v, ", ")
 			}
 
@@ -310,7 +310,7 @@ func parseRequestArgs(request *Request, args map[string]any) {
 
 	// Form params
 	if request.Method == http.MethodPost || request.Method == http.MethodPut {
-		contentType := request.Header.Get("Content-Type")
+		contentType := request.Header().Get("Content-Type")
 		if strings.HasPrefix(contentType, "application/json") {
 			body, _ := io.ReadAll(request.Body)
 			_ = request.Body.Close()
@@ -430,9 +430,9 @@ func outputResult(response *Response, result any) {
 func (ws *webServer) handleClientKeys(request *Request, response *Response) {
 	// SessionId
 	if ws.usedSessionIdKey != "" {
-		sessionId := request.Header.Get(ws.usedSessionIdKey)
+		sessionId := request.Header().Get(ws.usedSessionIdKey)
 		if sessionId == "" && !ws.Config.SessionWithoutCookie {
-			if ck, err := request.Cookie(ws.usedSessionIdKey); err == nil {
+			if ck := request.GetCookie(ws.usedSessionIdKey); ck != nil {
 				sessionId = ck.Value
 			}
 		}
@@ -451,15 +451,15 @@ func (ws *webServer) handleClientKeys(request *Request, response *Response) {
 				})
 			}
 		}
-		request.Header.Set(discover.HeaderSessionID, sessionId)
+		request.Request.Header.Set(discover.HeaderSessionID, sessionId)
 		response.Header().Set(ws.usedSessionIdKey, sessionId)
 	}
 
 	// DeviceId
 	if ws.usedDeviceIdKey != "" {
-		deviceId := request.Header.Get(ws.usedDeviceIdKey)
+		deviceId := request.Header().Get(ws.usedDeviceIdKey)
 		if deviceId == "" && !ws.Config.DeviceWithoutCookie {
-			if ck, err := request.Cookie(ws.usedDeviceIdKey); err == nil {
+			if ck := request.GetCookie(ws.usedDeviceIdKey); ck != nil {
 				deviceId = ck.Value
 			}
 		}
@@ -475,7 +475,7 @@ func (ws *webServer) handleClientKeys(request *Request, response *Response) {
 				})
 			}
 		}
-		request.Header.Set(discover.HeaderDeviceID, deviceId)
+		request.Request.Header.Set(discover.HeaderDeviceID, deviceId)
 		response.Header().Set(ws.usedDeviceIdKey, deviceId)
 	}
 }

@@ -1,6 +1,12 @@
 # CHANGELOG - go/service
 
-## v1.5.6 (2026-06-05)
+## v1.5.9 (2026-06-05)
+- **优化: 低代码环境深度对齐**:
+  - **JS 友好型 Header**: 引入 \`service.Header\` 包装类，提供大小写不敏感的 \`Get/Set/Add/Del\` 方法，提升脚本开发体验。
+  - **Cookie 遮蔽**: 在 \`Request\` 中实现方法遮蔽，确保 JS 侧看到的 Cookie 参数均为简化的 \`Service_Cookie\`，彻底解决穿透问题。
+  - **API 统一**: 将 \`Request.Headers()\` 重命名为 \`Request.Header()\`，与 \`Response.Header()\` 保持命名对齐。
+- **重构**: 给内部字段（如 \`*http.Request\`, \`ResponseWriter\`）增加 \`js:"-"\` 标签，精准管控对 JS 暴露的 API 边界。
+- **修复**: 解决了因 Header 包装导致的 Go 内部代码（\`handler.go\`, \`static.go\`）编译错误。
 - **新特性: EnableWebDev 支持**:
   - 引入了 `service.EnableWebDev(config watch.Config)`，支持自动刷新页面的开发模式。
   - **WebSocket 同步**: 自动注册 `/_watch` 服务，与文件监听器协同工作。

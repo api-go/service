@@ -6,12 +6,12 @@ import (
 
 func init() {
 	jsmod.Register("service", map[string]any{
-		// 类型占位工厂 (用于 AI 发现类型结构)
-		"newRequest":   func() *Request { return &Request{} },
-		"newResponse":  func() *Response { return &Response{} },
-		"newWebSocket": func() *WebSocketConn { return &WebSocketConn{} },
-		"newSession":   func() *Session { return &Session{} },
-		"newFile":      func() *jsUploadFile { return &jsUploadFile{} },
+		// 类型占位工厂 (用于 AI 发现类型结构，生成文档时隐藏)
+		"__exportRequest":   func() *Request { return &Request{} },
+		"__exportResponse":  func() *Response { return &Response{} },
+		"__exportWebSocket": func() *WebSocketConn { return &WebSocketConn{} },
+		"__exportSession":   func() *Session { return &Session{} },
+		"__exportFile":      func() *jsUploadFile { return &jsUploadFile{} },
 
 		// 功能函数
 		"upgrade": Upgrade,

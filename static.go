@@ -132,7 +132,7 @@ func (ws *webServer) processStatic(requestPath string, request *Request, respons
 	}
 
 	// 检查 304
-	if ifModifiedSince := request.Header.Get("If-Modified-Since"); ifModifiedSince != "" {
+	if ifModifiedSince := request.Header().Get("If-Modified-Since"); ifModifiedSince != "" {
 		if t, err := time.Parse(http.TimeFormat, ifModifiedSince); err == nil {
 			if time.Unix(info.ModTime, 0).Truncate(time.Second).Before(t.Truncate(time.Second)) ||
 				time.Unix(info.ModTime, 0).Truncate(time.Second).Equal(t.Truncate(time.Second)) {
