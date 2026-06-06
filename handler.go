@@ -157,7 +157,7 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		goto filter
 	}
 
-	s, wsc = ws.findService(r.Method, host, path)
+	s, wsc = ws.findService(r.Method, host, path, args)
 
 	// 4. 参数解析 (Form & Body)
 	parseRequestArgs(request, args)
@@ -245,7 +245,7 @@ func hostOnly(host string) string {
 	return h
 }
 
-func (ws *webServer) findService(method, host, path string) (*webServiceType, *websocketServiceType) {
+func (ws *webServer) findService(method, host, path string, args map[string]any) (*webServiceType, *websocketServiceType) {
 	ws.webServicesLock.RLock()
 	defer ws.webServicesLock.RUnlock()
 
@@ -289,6 +289,14 @@ func (ws *webServer) findService(method, host, path string) (*webServiceType, *w
 					continue
 				}
 				if s.pathMatcher != nil && s.pathMatcher.MatchString(path) {
+					matches := s.pathMatcher.FindStringSubmatch(path)
+					if len(matches) > 1 {
+						for i, name := range s.pathArgs {
+							if i+1 < len(matches) {
+								args[name] = matches[i+1]
+							}
+						}
+					}
 					return s, nil
 				}
 			}

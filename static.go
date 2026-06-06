@@ -82,20 +82,18 @@ func (ws *webServer) getStaticFilePath(requestPath, host string) string {
 	defer ws.staticsByHostLock.RUnlock()
 
 	// 优先匹配指定域名的配置
-	if hostConfig, exists := ws.staticsByHost[host]; exists {
-		if filePath := ws.findMatchedPath(hostConfig, requestPath); filePath != "" {
-			return filePath
-		}
+	if filePath := ws.findMatchedPathSorted(ws.hostStatics[host], requestPath); filePath != "" {
+		return filePath
 	}
 
 	// 匹配全局配置
-	return ws.findMatchedPath(ws.statics, requestPath)
+	return ws.findMatchedPathSorted(ws.hostStatics[""], requestPath)
 }
 
-func (ws *webServer) findMatchedPath(config map[string]*string, requestPath string) string {
-	for urlPath, rootPath := range config {
-		if strings.HasPrefix(requestPath, urlPath) {
-			return filepath.Join(*rootPath, requestPath[len(urlPath):])
+func (ws *webServer) findMatchedPathSorted(config []*staticType, requestPath string) string {
+	for _, rule := range config {
+		if strings.HasPrefix(requestPath, rule.path) {
+			return filepath.Join(*rule.rootPath, requestPath[len(rule.path):])
 		}
 	}
 	return ""

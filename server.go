@@ -23,6 +23,11 @@ import (
 	"time"
 )
 
+type staticType struct {
+	path     string
+	rootPath *string
+}
+
 type webServer struct {
 	Config      ServiceConfig
 	server      *http.Server
@@ -67,6 +72,7 @@ type webServer struct {
 	codeStatics       map[string]map[string]*string
 	fileStatics       map[string]map[string]*string
 	dynamicStatics    map[string]map[string]*string
+	hostStatics       map[string][]*staticType
 	staticsByHostLock sync.RWMutex
 
 	// 过滤器与拦截器
@@ -124,6 +130,7 @@ func newWebServer() *webServer {
 		codeStatics:           make(map[string]map[string]*string),
 		fileStatics:           make(map[string]map[string]*string),
 		dynamicStatics:        make(map[string]map[string]*string),
+		hostStatics:           make(map[string][]*staticType),
 		webAuthCheckers:       make(map[int]func(int, *log.Logger, *string, map[string]any, *Request, *Response, *WebServiceOptions) (pass bool, object any)),
 		injectObjects:         make(map[reflect.Type]any),
 		injectFunctions:       make(map[reflect.Type]func() any),
@@ -266,6 +273,16 @@ func (ws *webServer) rebuildStaticsUnderLock(host string) {
 	} else {
 		ws.staticsByHost[host] = combined
 	}
+
+	// 构造有序的静态路由列表 (按路径长度降序排列，实现最长匹配)
+	sorted := make([]*staticType, 0, len(combined))
+	for k, v := range combined {
+		sorted = append(sorted, &staticType{path: k, rootPath: v})
+	}
+	sort.Slice(sorted, func(i, j int) bool {
+		return len(sorted[i].path) > len(sorted[j].path)
+	})
+	ws.hostStatics[host] = sorted
 }
 
 // Start 启动服务，实现 starter.Service 接口
