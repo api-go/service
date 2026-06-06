@@ -49,7 +49,7 @@ func (hc *HostContext) Rewrite(path string, to string) *HostContext {
 	return hc
 }
 
-func (ws *webServer) processRewrite(request *Request, response *Response, logger *log.Logger) bool {
+func (ws *WebServer) processRewrite(request *Request, response *Response, logger *log.Logger) bool {
 	host := request.Host
 	hostOnly, port, _ := strings.Cut(host, ":")
 	hosts := []string{host}
@@ -139,7 +139,7 @@ func ReplaceRewrites(host string, rules []RewriteRule) {
 	DefaultServer.ReplaceRewrites(host, rules)
 }
 
-func (ws *webServer) ReplaceRewrites(host string, rules []RewriteRule) {
+func (ws *WebServer) ReplaceRewrites(host string, rules []RewriteRule) {
 	newRewrites := make([]*rewriteType, 0, len(rules))
 	for _, r := range rules {
 		newRewrites = append(newRewrites, parseRewriteRule(r.Path, r.ToPath, r.To))

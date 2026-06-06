@@ -88,7 +88,7 @@ func (hc *HostContext) Proxy(authLevel int, path string, to string) *HostContext
 	return hc
 }
 
-func (ws *webServer) findProxy(request *Request) (int, *string, *string, string) {
+func (ws *WebServer) findProxy(request *Request) (int, *string, *string, string) {
 	host := request.Host
 	hostOnly, port, _ := strings.Cut(host, ":")
 	hosts := []string{host}
@@ -145,7 +145,7 @@ func (ws *webServer) findProxy(request *Request) (int, *string, *string, string)
 	return 0, nil, nil, ""
 }
 
-func (ws *webServer) processProxy(request *Request, response *Response, logger *log.Logger) bool {
+func (ws *WebServer) processProxy(request *Request, response *Response, logger *log.Logger) bool {
 	authLevel, proxyToApp, proxyToPath, foundHost := ws.findProxy(request)
 
 	if proxyToApp == nil || proxyToPath == nil || *proxyToApp == "" || *proxyToPath == "" {
@@ -186,7 +186,7 @@ func (ws *webServer) processProxy(request *Request, response *Response, logger *
 	return true
 }
 
-func (ws *webServer) getHttpClient() *gohttp.Client {
+func (ws *WebServer) getHttpClient() *gohttp.Client {
 	// 尝试从注入对象获取
 	if obj := ws.GetInject(reflect.TypeOf(&gohttp.Client{})); obj != nil {
 		return obj.(*gohttp.Client)
@@ -198,7 +198,7 @@ func (ws *webServer) getHttpClient() *gohttp.Client {
 	return gohttp.NewClient(timeout)
 }
 
-func (ws *webServer) checkAuthForProxy(authLevel int, request *Request, response *Response, logger *log.Logger) (bool, any) {
+func (ws *WebServer) checkAuthForProxy(authLevel int, request *Request, response *Response, logger *log.Logger) (bool, any) {
 	ac := ws.webAuthCheckers[authLevel]
 	if ac == nil {
 		ac = ws.webAuthChecker
@@ -245,7 +245,7 @@ func ReplaceProxies(host string, rules []ProxyRule) {
 	DefaultServer.ReplaceProxies(host, rules)
 }
 
-func (ws *webServer) ReplaceProxies(host string, rules []ProxyRule) {
+func (ws *WebServer) ReplaceProxies(host string, rules []ProxyRule) {
 	newProxies := make([]*proxyType, 0, len(rules))
 	for _, r := range rules {
 		newProxies = append(newProxies, parseProxyRule(r.AuthLevel, r.Path, r.ToApp, r.ToPath, r.To))

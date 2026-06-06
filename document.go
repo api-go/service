@@ -24,7 +24,7 @@ func MakeDocument() []Api {
 	return DefaultServer.MakeDocument()
 }
 
-func (ws *webServer) MakeDocument() []Api {
+func (ws *WebServer) MakeDocument() []Api {
 	out := make([]Api, 0)
 
 	// 1. Rewrite & Proxy

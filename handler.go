@@ -16,7 +16,7 @@ import (
 )
 
 type RouteHandler struct {
-	ws               *webServer
+	ws               *WebServer
 	webRequestingNum int64
 }
 
@@ -245,7 +245,7 @@ func hostOnly(host string) string {
 	return h
 }
 
-func (ws *webServer) findService(method, host, path string, args map[string]any) (*webServiceType, *websocketServiceType) {
+func (ws *WebServer) findService(method, host, path string, args map[string]any) (*webServiceType, *websocketServiceType) {
 	ws.webServicesLock.RLock()
 	defer ws.webServicesLock.RUnlock()
 
@@ -339,7 +339,7 @@ func parseRequestArgs(request *Request, args map[string]any) {
 	}
 }
 
-func (ws *webServer) checkAuth(authLevel int, options *WebServiceOptions, request *Request, response *Response, args map[string]any, logger *log.Logger) (bool, any) {
+func (ws *WebServer) checkAuth(authLevel int, options *WebServiceOptions, request *Request, response *Response, args map[string]any, logger *log.Logger) (bool, any) {
 	ac := ws.webAuthCheckers[authLevel]
 	if ac == nil {
 		ac = ws.webAuthChecker
@@ -358,7 +358,7 @@ func (ws *webServer) checkAuth(authLevel int, options *WebServiceOptions, reques
 	return pass, obj
 }
 
-func (ws *webServer) doWebService(service *webServiceType, request *Request, response *Response, args map[string]any,
+func (ws *WebServer) doWebService(service *webServiceType, request *Request, response *Response, args map[string]any,
 	result any, logger *log.Logger, object any) any {
 	if result != nil {
 		return result
@@ -436,7 +436,7 @@ func outputResult(response *Response, result any) {
 		_, _ = response.Write(data)
 	}
 }
-func (ws *webServer) handleClientKeys(request *Request, response *Response) {
+func (ws *WebServer) handleClientKeys(request *Request, response *Response) {
 	// SessionId
 	if ws.usedSessionIdKey != "" {
 		sessionId := request.Header().Get(ws.usedSessionIdKey)

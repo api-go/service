@@ -17,14 +17,14 @@ func OnReload(handler func() error) {
 	DefaultServer.OnReload(handler)
 }
 
-func (ws *webServer) OnReload(handler func() error) {
+func (ws *WebServer) OnReload(handler func() error) {
 	globalReloadHook.lock.Lock()
 	defer globalReloadHook.lock.Unlock()
 	globalReloadHook.hooks = append(globalReloadHook.hooks, handler)
 }
 
 // triggerReload 触发所有注册的重新加载钩子
-func (ws *webServer) triggerReload() error {
+func (ws *WebServer) triggerReload() error {
 	globalReloadHook.lock.RLock()
 	hooks := make([]func() error, len(globalReloadHook.hooks))
 	copy(hooks, globalReloadHook.hooks)

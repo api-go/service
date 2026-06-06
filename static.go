@@ -26,7 +26,7 @@ func Static(path, rootPath string) {
 	DefaultServer.Static(path, rootPath)
 }
 
-func (ws *webServer) Static(path, rootPath string) {
+func (ws *WebServer) Static(path, rootPath string) {
 	ws.Host("*").Static(path, rootPath)
 }
 
@@ -35,7 +35,7 @@ func StaticByHost(path, rootPath, host string) {
 	DefaultServer.StaticByHost(path, rootPath, host)
 }
 
-func (ws *webServer) StaticByHost(path, rootPath, host string) {
+func (ws *WebServer) StaticByHost(path, rootPath, host string) {
 	if !filepath.IsAbs(rootPath) {
 		if absPath, err := filepath.Abs(rootPath); err == nil {
 			rootPath = absPath
@@ -57,7 +57,7 @@ func ReplaceStatics(host string, config map[string]string) {
 	DefaultServer.ReplaceStatics(host, config)
 }
 
-func (ws *webServer) ReplaceStatics(host string, config map[string]string) {
+func (ws *WebServer) ReplaceStatics(host string, config map[string]string) {
 	newStatics := make(map[string]*string, len(config))
 	for path, rootPath := range config {
 		rp := rootPath
@@ -76,7 +76,7 @@ func (ws *webServer) ReplaceStatics(host string, config map[string]string) {
 	ws.rebuildStaticsUnderLock(host)
 }
 
-func (ws *webServer) getStaticFilePath(requestPath, host string) string {
+func (ws *WebServer) getStaticFilePath(requestPath, host string) string {
 	requestPath, _ = url.PathUnescape(requestPath)
 	ws.staticsByHostLock.RLock()
 	defer ws.staticsByHostLock.RUnlock()
@@ -90,7 +90,7 @@ func (ws *webServer) getStaticFilePath(requestPath, host string) string {
 	return ws.findMatchedPathSorted(ws.hostStatics[""], requestPath)
 }
 
-func (ws *webServer) findMatchedPathSorted(config []*staticType, requestPath string) string {
+func (ws *WebServer) findMatchedPathSorted(config []*staticType, requestPath string) string {
 	for _, rule := range config {
 		if strings.HasPrefix(requestPath, rule.path) {
 			return filepath.Join(*rule.rootPath, requestPath[len(rule.path):])
@@ -99,7 +99,7 @@ func (ws *webServer) findMatchedPathSorted(config []*staticType, requestPath str
 	return ""
 }
 
-func (ws *webServer) processStatic(requestPath string, request *Request, response *Response, logger *log.Logger) bool {
+func (ws *WebServer) processStatic(requestPath string, request *Request, response *Response, logger *log.Logger) bool {
 	filePath := ws.getStaticFilePath(requestPath, request.Host)
 	if filePath == "" {
 		return false

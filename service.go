@@ -61,7 +61,7 @@ func SetClientKeys(deviceIdKey, clientAppKey, sessionIdKey string) {
 	DefaultServer.SetClientKeys(deviceIdKey, clientAppKey, sessionIdKey)
 }
 
-func (ws *webServer) SetClientKeys(deviceIdKey, clientAppKey, sessionIdKey string) {
+func (ws *WebServer) SetClientKeys(deviceIdKey, clientAppKey, sessionIdKey string) {
 	ws.usedDeviceIdKey = deviceIdKey
 	ws.usedClientAppKey = clientAppKey
 	ws.usedSessionIdKey = sessionIdKey
@@ -72,7 +72,7 @@ func SetSessionIdMaker(maker func() string) {
 	DefaultServer.SetSessionIdMaker(maker)
 }
 
-func (ws *webServer) SetSessionIdMaker(maker func() string) {
+func (ws *WebServer) SetSessionIdMaker(maker func() string) {
 	ws.sessionIdMaker = maker
 }
 
@@ -81,7 +81,7 @@ func SetAuthChecker(authChecker func(authLevel int, logger *log.Logger, url *str
 	DefaultServer.SetAuthChecker(authChecker)
 }
 
-func (ws *webServer) SetAuthChecker(authChecker func(authLevel int, logger *log.Logger, url *string, in map[string]any, request *Request, response *Response, options *WebServiceOptions) (pass bool, object any)) {
+func (ws *WebServer) SetAuthChecker(authChecker func(authLevel int, logger *log.Logger, url *string, in map[string]any, request *Request, response *Response, options *WebServiceOptions) (pass bool, object any)) {
 	ws.webAuthChecker = authChecker
 }
 
@@ -90,7 +90,7 @@ func AddAuthChecker(authLevels []int, authChecker func(authLevel int, logger *lo
 	DefaultServer.AddAuthChecker(authLevels, authChecker)
 }
 
-func (ws *webServer) AddAuthChecker(authLevels []int, authChecker func(authLevel int, logger *log.Logger, url *string, in map[string]any, request *Request, response *Response, options *WebServiceOptions) (pass bool, object any)) {
+func (ws *WebServer) AddAuthChecker(authLevels []int, authChecker func(authLevel int, logger *log.Logger, url *string, in map[string]any, request *Request, response *Response, options *WebServiceOptions) (pass bool, object any)) {
 	for _, al := range authLevels {
 		ws.webAuthCheckers[al] = authChecker
 	}
@@ -101,7 +101,7 @@ func SetInFilter(filter func(in *map[string]any, request *Request, response *Res
 	DefaultServer.SetInFilter(filter)
 }
 
-func (ws *webServer) SetInFilter(filter func(in *map[string]any, request *Request, response *Response, logger *log.Logger) (out any)) {
+func (ws *WebServer) SetInFilter(filter func(in *map[string]any, request *Request, response *Response, logger *log.Logger) (out any)) {
 	ws.inFilters = append(ws.inFilters, filter)
 }
 
@@ -110,7 +110,7 @@ func AddShutdownHook(hook func()) {
 	DefaultServer.AddShutdownHook(hook)
 }
 
-func (ws *webServer) AddShutdownHook(hook func()) {
+func (ws *WebServer) AddShutdownHook(hook func()) {
 	ws.shutdownHooksLock.Lock()
 	defer ws.shutdownHooksLock.Unlock()
 	ws.shutdownHooks = append(ws.shutdownHooks, hook)
@@ -121,7 +121,7 @@ func SetOutFilter(filter func(in map[string]any, request *Request, response *Res
 	DefaultServer.SetOutFilter(filter)
 }
 
-func (ws *webServer) SetOutFilter(filter func(in map[string]any, request *Request, response *Response, out any, logger *log.Logger) (newOut any, isOver bool)) {
+func (ws *WebServer) SetOutFilter(filter func(in map[string]any, request *Request, response *Response, out any, logger *log.Logger) (newOut any, isOver bool)) {
 	ws.webServicesLock.Lock()
 	defer ws.webServicesLock.Unlock()
 	ws.outFilters = append(ws.outFilters, filter)
@@ -130,7 +130,7 @@ func (ws *webServer) SetOutFilter(filter func(in map[string]any, request *Reques
 
 // HostContext 提供流式服务注册能力
 type HostContext struct {
-	ws   *webServer
+	ws   *WebServer
 	host string
 }
 
@@ -139,7 +139,7 @@ func Host(host string) *HostContext {
 	return DefaultServer.Host(host)
 }
 
-func (ws *webServer) Host(host string) *HostContext {
+func (ws *WebServer) Host(host string) *HostContext {
 	if host == "" {
 		host = "*"
 	}
@@ -151,7 +151,7 @@ func Register(method, path string, serviceFunc any) *webServiceType {
 	return DefaultServer.Register(method, path, serviceFunc)
 }
 
-func (ws *webServer) Register(method, path string, serviceFunc any) *webServiceType {
+func (ws *WebServer) Register(method, path string, serviceFunc any) *webServiceType {
 	return ws.Host("*").Register(method, path, serviceFunc)
 }
 
@@ -160,7 +160,7 @@ func RegisterWebsocket(path string, serviceFunc any) *websocketServiceType {
 	return DefaultServer.RegisterWebsocket(path, serviceFunc)
 }
 
-func (ws *webServer) RegisterWebsocket(path string, serviceFunc any) *websocketServiceType {
+func (ws *WebServer) RegisterWebsocket(path string, serviceFunc any) *websocketServiceType {
 	return ws.Host("*").WebSocket(path, serviceFunc)
 }
 
@@ -169,7 +169,7 @@ func Proxy(authLevel int, path string, to string) {
 	DefaultServer.Proxy(authLevel, path, to)
 }
 
-func (ws *webServer) Proxy(authLevel int, path string, to string) {
+func (ws *WebServer) Proxy(authLevel int, path string, to string) {
 	ws.Host("*").Proxy(authLevel, path, to)
 }
 
@@ -178,7 +178,7 @@ func Restful(authLevel int, path string, serviceStruct any) {
 	DefaultServer.Restful(authLevel, path, serviceStruct)
 }
 
-func (ws *webServer) Restful(authLevel int, path string, serviceStruct any) {
+func (ws *WebServer) Restful(authLevel int, path string, serviceStruct any) {
 	ws.Host("*").Restful(authLevel, path, serviceStruct)
 }
 
@@ -468,7 +468,7 @@ func GetInject(dataType reflect.Type) any {
 	return DefaultServer.GetInject(dataType)
 }
 
-func (ws *webServer) GetInject(dataType reflect.Type) any {
+func (ws *WebServer) GetInject(dataType reflect.Type) any {
 	if obj, exists := ws.injectObjects[dataType]; exists {
 		return obj
 	}
@@ -497,7 +497,7 @@ func EnableWebDev(config watch.Config) {
 	DefaultServer.webDevConfig = config
 }
 
-func (ws *webServer) initWebDev(logger *log.Logger) {
+func (ws *WebServer) initWebDev(logger *log.Logger) {
 	webDevOnce.Do(func() {
 		logger.Warning("Web Development Mode Enabled. This should NOT be used in production environment.")
 		onWatchConn := map[string]*WebSocketConn{}

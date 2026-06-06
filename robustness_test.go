@@ -23,7 +23,7 @@ func TestStaticRobustness(t *testing.T) {
 	_ = os.WriteFile(testFile, content, 0644)
 
 	// 注册静态目录
-	ws := newWebServer()
+	ws := NewWebServer()
 	ws.Config.App = "test"
 	ws.Static("/img/", tempDir)
 
@@ -45,7 +45,7 @@ func TestStaticRobustness(t *testing.T) {
 }
 
 func TestDynamicRobustness(t *testing.T) {
-	ws := newWebServer()
+	ws := NewWebServer()
 	ws.Config.App = "test"
 	
 	pathPattern := "/api/scene/{name}"
@@ -72,7 +72,7 @@ func TestDynamicRobustness(t *testing.T) {
 }
 
 func TestHostMatching(t *testing.T) {
-	ws := newWebServer()
+	ws := NewWebServer()
 	ws.Config.App = "test"
 
 	// 1. 注册只带端口的 Host

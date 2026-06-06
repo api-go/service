@@ -19,7 +19,7 @@ type Response struct {
 	dontLog200    bool                `js:"-"`
 	dontLogArgs   []string            `js:"-"`
 	ProxyHeader   *http.Header        `js:"-"`
-	server        *webServer          `js:"-"`
+	server        *WebServer          `js:"-"`
 }
 
 func (r *Response) SetCookie(cookie *Cookie) {
@@ -38,7 +38,7 @@ func (r *Response) SetCookie(cookie *Cookie) {
 }
 
 // NewResponse 创建 Response 包装
-func NewResponse(writer http.ResponseWriter, server *webServer) *Response {
+func NewResponse(writer http.ResponseWriter, server *WebServer) *Response {
 	return &Response{
 		Writer: writer,
 		Code:   http.StatusOK,

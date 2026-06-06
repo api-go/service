@@ -59,7 +59,7 @@ func Upgrade(response *Response, request *Request) (*WebSocketConn, error) {
 	return &WebSocketConn{Conn: conn}, nil
 }
 
-func (ws *webServer) doWebsocketService(wsc *websocketServiceType, request *Request, response *Response, logger *log.Logger, object any) {
+func (ws *WebServer) doWebsocketService(wsc *websocketServiceType, request *Request, response *Response, logger *log.Logger, object any) {
 	wsConn, err := Upgrade(response, request)
 	if err != nil {
 		logger.Error("websocket upgrade failed", "error", err.Error())

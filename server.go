@@ -28,7 +28,7 @@ type staticType struct {
 	rootPath *string
 }
 
-type webServer struct {
+type WebServer struct {
 	Config      ServiceConfig
 	server      *http.Server
 	listener    net.Listener
@@ -105,13 +105,13 @@ type webServer struct {
 }
 
 // DefaultServer 全局单例服务实例
-var DefaultServer = newWebServer()
+var DefaultServer = NewWebServer()
 
 // Config 全局配置对象 (指向 DefaultServer.Config)
 var Config = &DefaultServer.Config
 
-func newWebServer() *webServer {
-	ws := &webServer{
+func NewWebServer() *WebServer {
+	ws := &WebServer{
 		webServices:           make(map[string]map[string]*webServiceType),
 		regexWebServices:      make(map[string][]*webServiceType),
 		webServicesList:       make([]*webServiceType, 0),
@@ -144,7 +144,7 @@ func SetDiscovererForTest(d *discover.Discoverer) {
 }
 
 // ApplyConfig 将 ServiceConfig 中的路由策略应用到内部的文件级策略中
-func (ws *webServer) ApplyConfig() {
+func (ws *WebServer) ApplyConfig() {
 	ws.hostPoliciesLock.Lock()
 	defer ws.hostPoliciesLock.Unlock()
 
@@ -232,7 +232,7 @@ func (ws *webServer) ApplyConfig() {
 	ws.rebuildStaticsUnderLock("")
 }
 
-func (ws *webServer) rebuildProxiesUnderLock(host string) {
+func (ws *WebServer) rebuildProxiesUnderLock(host string) {
 	combined := make([]*proxyType, 0)
 	combined = append(combined, ws.codeProxies[host]...)
 	combined = append(combined, ws.fileProxies[host]...)
@@ -244,7 +244,7 @@ func (ws *webServer) rebuildProxiesUnderLock(host string) {
 	ws.hostProxies[host] = combined
 }
 
-func (ws *webServer) rebuildRewritesUnderLock(host string) {
+func (ws *WebServer) rebuildRewritesUnderLock(host string) {
 	combined := make([]*rewriteType, 0)
 	combined = append(combined, ws.codeRewrites[host]...)
 	combined = append(combined, ws.fileRewrites[host]...)
@@ -256,7 +256,7 @@ func (ws *webServer) rebuildRewritesUnderLock(host string) {
 	ws.hostRewrites[host] = combined
 }
 
-func (ws *webServer) rebuildStaticsUnderLock(host string) {
+func (ws *WebServer) rebuildStaticsUnderLock(host string) {
 	combined := make(map[string]*string)
 	for k, v := range ws.codeStatics[host] {
 		combined[k] = v
@@ -286,7 +286,7 @@ func (ws *webServer) rebuildStaticsUnderLock(host string) {
 }
 
 // Start 启动服务，实现 starter.Service 接口
-func (ws *webServer) Start(ctx context.Context, logger *log.Logger) error {
+func (ws *WebServer) Start(ctx context.Context, logger *log.Logger) error {
 	if logger == nil {
 		logger = log.DefaultLogger
 	}
@@ -442,7 +442,7 @@ func (ws *webServer) Start(ctx context.Context, logger *log.Logger) error {
 }
 
 // Stop 停止服务，实现 starter.Service 接口
-func (ws *webServer) Stop(ctx context.Context) error {
+func (ws *WebServer) Stop(ctx context.Context) error {
 	ws.running = false
 
 	// 执行停机钩子 (反序)
@@ -465,7 +465,7 @@ func (ws *webServer) Stop(ctx context.Context) error {
 }
 
 // Status 检查服务健康状态，实现 starter.Service 接口
-func (ws *webServer) Status() (string, error) {
+func (ws *WebServer) Status() (string, error) {
 	if ws.server == nil || !ws.running {
 		return "", fmt.Errorf("server is not running")
 	}
@@ -473,7 +473,7 @@ func (ws *webServer) Status() (string, error) {
 }
 
 // Reload 实现配置重新加载，实现 starter.Reloader 接口
-func (ws *webServer) Reload() error {
+func (ws *WebServer) Reload() error {
 	logger := ws.logger
 	if logger == nil {
 		logger = log.DefaultLogger
@@ -490,7 +490,7 @@ func (ws *webServer) Reload() error {
 
 // AsyncServer 兼容旧版异步服务实例
 type AsyncServer struct {
-	*webServer
+	*WebServer
 }
 
 // Stop 兼容旧版的无参数停止方法
@@ -501,13 +501,13 @@ func (as *AsyncServer) Stop() {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), stopTimeout)
 	defer cancel()
-	_ = as.webServer.Stop(ctx)
+	_ = as.WebServer.Stop(ctx)
 }
 
 // AsyncStart 兼容旧版的异步启动方法
 func AsyncStart() *AsyncServer {
 	_ = DefaultServer.Start(context.Background(), log.DefaultLogger)
-	return &AsyncServer{webServer: DefaultServer}
+	return &AsyncServer{WebServer: DefaultServer}
 }
 
 // Wait 等待服务结束 (兼容旧版，直接阻塞)
