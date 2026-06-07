@@ -528,6 +528,8 @@ func Start() {
 			stopTimeout = 5 * time.Second
 		}
 		starter.Register("web-server", DefaultServer, 100, 5*time.Second, stopTimeout)
-		starter.Run()
+		if err := starter.Start(); err == nil {
+			starter.Wait()
+		}
 	})
 }

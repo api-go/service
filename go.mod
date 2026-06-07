@@ -13,7 +13,7 @@ require (
 	apigo.cc/go/log v1.5.5
 	apigo.cc/go/redis v1.5.0
 	apigo.cc/go/safe v1.5.0
-	apigo.cc/go/starter v1.5.2
+	apigo.cc/go/starter v1.5.3
 	apigo.cc/go/timer v1.5.0
 	github.com/gorilla/websocket v1.5.3
 	golang.org/x/net v0.54.0
