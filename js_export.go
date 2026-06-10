@@ -14,7 +14,7 @@ func init() {
 		"__exportFile":      func() *jsUploadFile { return &jsUploadFile{} },
 
 		// 功能函数
-		"upgrade": Upgrade,
+		"Upgrade": Upgrade,
 	})
 }
 
