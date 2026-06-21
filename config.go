@@ -23,12 +23,18 @@ type ServiceConfig struct {
 	Listen                        string                // 监听端口（|隔开多个监听）（,隔开多个选项），例如 80,http|443|443:h2|127.0.0.1:8080,h2c
 	SSL                           map[string]*CertSet   // SSL 证书配置，key 为域名
 	NoLogGets                     bool                  // 不记录 GET 请求的日志
+	NoLogInput                    bool                  // 不记录请求输入
+	NoLogOutput                   bool                  // 不记录响应输出
+	NoLogAllHeaders               bool                  // 不记录所有请求/响应头
 	NoLogHeaders                  string                // 不记录请求头中包含的这些字段，多个字段用逗号分隔
-	LogInputArrayNum              int                   // 请求字段中容器类型在日志打印个数限制
-	LogInputFieldSize             int                   // 请求字段中单个字段在日志打印长度限制
+	LogInputObjectNum             int                   // 请求对象中最多记录的 key 数
+	LogInputArrayNum              int                   // 请求数组中最多记录的元素数
+	LogInputFieldSize             int                   // 请求单个字段的字符串截断长度
 	NoLogOutputFields             string                // 不记录响应字段中包含的这些字段
-	LogOutputArrayNum             int                   // 响应字段中容器类型在日志打印个数限制
-	LogOutputFieldSize            int                   // 响应字段中单个字段在日志打印长度限制
+	LogOutputObjectNum            int                   // 响应对象中最多记录的 key 数
+	LogOutputArrayNum             int                   // 响应数组中最多记录的元素数
+	LogOutputFieldSize            int                   // 响应单个字段的字符串截断长度
+	LogOutputMaxSize              int                   // 非对象响应内容的最大记录长度
 	Compress                      bool                  // 是否启用压缩
 	CompressMinSize               int                   // 启用压缩的最小长度
 	CompressMaxSize               int                   // 启用压缩的最大长度

@@ -32,7 +32,7 @@ func jsUpgrade(response *Response, request *Request) (*WebSocketConn, error) {
 	return conn, nil
 }
 
-// jsUploadFile 包装 UploadFile 以隐藏敏感方法
+// jsUploadFile 包装 UploadFile 以隐藏敏感方法（如 Open）
 type jsUploadFile struct {
 	f *UploadFile
 }

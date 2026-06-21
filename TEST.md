@@ -24,7 +24,11 @@
 - [x] `TestGetDefaultName`: 自动应用名识别
 - [x] `TestGetServerIp`: 自动 IP 探测
 - [x] `TestSmartStartup`: 零配置智能启动与 Discover 注册
-- [x] **Logging Filters**: 已手动验证 `NoLogGets`, `NoLogHeaders` 等过滤逻辑。
+- [x] `TestSanitizeScalars` ~ `TestSanitizeMixedSlice`: 日志脱敏 10 个测试（标量/对象/数组/嵌套/预算/Unicode）
+- [x] `TestSessionLogic`: Session Save/Load/Remove 及 AuthFuncs
+- [x] `TestSessionInjection`: Session HTTP 注入流程
+- [x] Logging Filters: NoLogInput/NoLogOutput/NoLogAllHeaders/NoLogGets/NoLogHeaders
+- [x] Response Body: 200 响应和 dev 模式下 keepBody 捕获
 
 ## 基础设施对齐验证
 - [x] 成功集成 `apigo.cc/go/cast` 用于参数解析与类型强转。

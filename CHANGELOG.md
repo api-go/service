@@ -1,5 +1,26 @@
 # CHANGELOG - go/service
 
+## v1.5.17 (2026-06-21)
+- **Session 增强**:
+  - `Save` 改为可变参数 `Save(args ...map[string]any) error`，支持传入 map 批量设置后保存。
+  - 新增 `Load(keys []string) map[string]any`，支持批量读取，空参数返回全部数据。
+  - `Remove` 改为可变参数 `Remove(keys ...string)`，支持一次删除多个 key。
+- **日志脱敏引擎**:
+  - 新增 `sanitizeLogData` 递归脱敏函数，基于 size 预算、字符串截断、数组/对象元素限制构建日志安全对象，不影响原始数据。
+  - 新增 `sanitizeLogHeaders` 统一处理请求/响应头过滤。
+  - 新增 `sanitizeRespBody` 自动 JSON 解析后走对象脱敏，非 JSON 按字符串截断。
+- **日志配置新增**:
+  - `NoLogInput`/`NoLogOutput`/`NoLogAllHeaders` — 高并发加速开关。
+  - `LogInputObjectNum`/`LogOutputObjectNum` — 对象最多记录 key 数（默认 10/5）。
+  - 各配置默认值: fieldSize=20, arrayNum(In=5/Out=3), maxSize=200, NoLogHeaders 默认过滤内部头。
+- **响应体捕获修复**:
+  - `response.Write` 改为始终调用 `keepBody` 缓冲 body（限制大小 LogOutputMaxSize），修复 200 响应无日志输出的问题。
+  - `outputResult` 先调 `keepBody` 再分路径写出，修复 dev 模式（hasOutFilter）下 PhysicalWrite 绕过 body 缓冲的问题。
+- **客户端 Key 默认值**: `Session-ID`/`Device-ID`/`App`，配合 HTTP header canonicalize 显示为 `Session-Id`/`Device-Id`。
+- **调试清理**: 移除 handler.go 中 `fmt.Println`/`shell.BMagenta` 调试残留。
+- **日志格式优化**: RequestHeaders 颜色 blue，ResponseDataLength key 为 Size，ResponseData/ResponseHeaders 颜色 yellow。
+- **依赖更新**: 升级 `js` 至 `v1.5.6`。
+
 ## v1.5.15 (2026-06-21)
 - **错误堆栈重构**:
   - 重构 `js_export.go`，将匿名占位工厂函数改写为包级具名函数。

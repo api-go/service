@@ -1,14 +1,15 @@
 package service
 
 import (
-	"apigo.cc/go/cast"
-	"apigo.cc/go/jsmod"
-	"apigo.cc/go/log"
-	"apigo.cc/go/redis"
 	"errors"
 	"strings"
 	"sync"
 	"time"
+
+	"apigo.cc/go/cast"
+	"apigo.cc/go/jsmod"
+	"apigo.cc/go/log"
+	"apigo.cc/go/redis"
 )
 
 // Session 会话对象
@@ -74,11 +75,35 @@ func (s *Session) Get(key string) any {
 	return s.data[key]
 }
 
-// Remove 移除会话数据
-func (s *Session) Remove(key string) {
+// Load 批量读取会话数据，keys 为空时返回全部数据
+func (s *Session) Load(keys []string) map[string]any {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	if len(keys) == 0 {
+		result := make(map[string]any, len(s.data))
+		for k, v := range s.data {
+			result[k] = v
+		}
+		return result
+	}
+
+	result := make(map[string]any, len(keys))
+	for _, key := range keys {
+		if v, ok := s.data[key]; ok {
+			result[key] = v
+		}
+	}
+	return result
+}
+
+// Remove 移除会话数据，支持传入多个 key
+func (s *Session) Remove(keys ...string) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
-	delete(s.data, key)
+	for _, key := range keys {
+		delete(s.data, key)
+	}
 }
 
 // SetAuthLevel 设置鉴权级别
@@ -91,10 +116,16 @@ func (s *Session) GetAuthLevel() int {
 	return cast.Int(s.Get("_authLevel"))
 }
 
-// Save 保存会话数据
-func (s *Session) Save() error {
+// Save 保存会话数据，可选传入 map 用于批量设置后保存
+func (s *Session) Save(args ...map[string]any) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
+
+	if len(args) > 0 && args[0] != nil {
+		for k, v := range args[0] {
+			s.data[k] = v
+		}
+	}
 
 	timeout := Config.SessionTimeout
 	if timeout <= 0 {

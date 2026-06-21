@@ -25,12 +25,12 @@ type RequestLog struct {
 	AuthLevel          int               `log:"pos:22,color:green"`
 	Priority           int               `log:"pos:23,hide:true"`
 	RequestData        any               `log:"pos:24,color:cyan,keyname:Request"`
-	RequestHeaders     map[string]string `log:"pos:25,color:cyan,keyname:Headers"`
+	RequestHeaders     map[string]string `log:"pos:25,color:blue,keyname:Headers"`
 	UsedTime           float32           `log:"pos:26,color:green,precision:6"`
 	ResponseCode       int               `log:"pos:27,color:magenta,keyname:Status"`
-	ResponseDataLength uint              `log:"pos:28,color:magenta,keyname:ContentLength"`
+	ResponseDataLength uint              `log:"pos:28,color:magenta,keyname:Size"`
 	ResponseData       any               `log:"pos:29,color:magenta,keyname:Response"`
-	ResponseHeaders    map[string]string `log:"pos:30,color:magenta,keyname:Headers"`
+	ResponseHeaders    map[string]string `log:"pos:30,color:yellow,keyname:Headers"`
 }
 
 func (l *RequestLog) Reset() {

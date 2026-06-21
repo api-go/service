@@ -67,10 +67,8 @@ func (r *Response) Write(bytes []byte) (int, error) {
 		return len(bytes), nil
 	}
 
-	// 即使没有过滤器，非 200 状态码也进行缓冲以便日志记录
-	if r.Code != http.StatusOK {
-		r.body = append(r.body, bytes...)
-	}
+	// 缓冲 body 用于日志记录
+	r.keepBody(bytes)
 
 	if r.ProxyHeader != nil {
 		r.copyProxyHeader()
@@ -80,6 +78,22 @@ func (r *Response) Write(bytes []byte) (int, error) {
 		return n, jsmod.MakeError(err)
 	}
 	return n, nil
+}
+
+// keepBody 缓冲数据用于日志记录，限制大小防止内存问题
+func (r *Response) keepBody(bytes []byte) {
+	maxBuf := 200
+	if r.server != nil && r.server.Config.LogOutputMaxSize > 0 {
+		maxBuf = r.server.Config.LogOutputMaxSize
+	}
+	if len(r.body) < maxBuf {
+		space := maxBuf - len(r.body)
+		if len(bytes) <= space {
+			r.body = append(r.body, bytes...)
+		} else {
+			r.body = append(r.body, bytes[:space]...)
+		}
+	}
 }
 
 // PhysicalWrite 物理写入网线，绕过过滤器缓冲逻辑

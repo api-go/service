@@ -1,10 +1,6 @@
 package service
 
 import (
-	"apigo.cc/go/cast"
-	"apigo.cc/go/discover"
-	"apigo.cc/go/log"
-	"apigo.cc/go/timer"
 	"io"
 	"net/http"
 	"net/url"
@@ -13,6 +9,11 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"apigo.cc/go/cast"
+	"apigo.cc/go/discover"
+	"apigo.cc/go/log"
+	"apigo.cc/go/timer"
 )
 
 type RouteHandler struct {
@@ -71,43 +72,33 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			usedTime := float32(tracker.Stop().Seconds())
 
-			// 过滤请求头
-			reqHeaders := make(map[string]string)
-			noLogHeaders := strings.Split(ws.Config.NoLogHeaders, ",")
-			for k, v := range r.Header {
-				skip := false
-				for _, nl := range noLogHeaders {
-					if nl != "" && strings.EqualFold(k, strings.TrimSpace(nl)) {
-						skip = true
-						break
-					}
-				}
-				if !skip {
-					reqHeaders[k] = strings.Join(v, ", ")
-				}
+			// 请求头
+			var reqHeaders map[string]string
+			if !ws.Config.NoLogAllHeaders {
+				reqHeaders = sanitizeLogHeaders(r.Header, ws.Config.NoLogHeaders)
 			}
 
-			// 过滤响应头
-			respHeaders := make(map[string]string)
-			for k, v := range response.Header().H {
-				respHeaders[k] = strings.Join(v, ", ")
+			// 响应头
+			var respHeaders map[string]string
+			if !ws.Config.NoLogAllHeaders {
+				respHeaders = sanitizeLogHeaders(response.Header().H, "")
 			}
 
-			// 处理响应内容截断
+			// 请求输入脱敏
+			var reqData any
+			if !ws.Config.NoLogInput && args != nil {
+				reqData = sanitizeLogData(args, sanitizeOpts{
+					maxSize:   200,
+					fieldSize: ws.Config.LogInputFieldSize,
+					arrayNum:  ws.Config.LogInputArrayNum,
+					objectNum: ws.Config.LogInputObjectNum,
+				})
+			}
+
+			// 响应输出脱敏
 			var respData any
-			if response.Code != 200 {
-				if len(response.body) < 1024 {
-					respData = string(response.body)
-				} else {
-					respData = string(response.body[:1024]) + "..."
-				}
-			} else if ws.Config.NoLogOutputFields != "" {
-				// 简单的字段过滤逻辑 (如果是 JSON 对象)
-				// 这里可以根据 Config.NoLogOutputFields, LogOutputArrayNum, LogOutputFieldSize 进行更复杂的处理
-				// 暂按字符串截断处理
-				if len(response.body) > 0 {
-					respData = "[content hidden or truncated]"
-				}
+			if !ws.Config.NoLogOutput && len(response.body) > 0 {
+				respData = sanitizeRespBody(response.body, &ws.Config)
 			}
 
 			LogRequest(requestLogger, func(entry *RequestLog) {
@@ -128,7 +119,7 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				entry.AuthLevel = authLevel
 				entry.Priority = priority
 				entry.RequestHeaders = reqHeaders
-				entry.RequestData = args
+				entry.RequestData = reqData
 				entry.ResponseCode = response.Code
 				entry.UsedTime = usedTime
 				entry.ResponseHeaders = respHeaders
@@ -433,6 +424,7 @@ func outputResult(response *Response, result any) {
 		response.Header().Set("Content-Type", contentType)
 	}
 
+	response.keepBody(data)
 	if response.server != nil && response.server.hasOutFilter {
 		response.PhysicalWrite(data)
 	} else {
@@ -489,5 +481,15 @@ func (ws *WebServer) handleClientKeys(request *Request, response *Response) {
 		}
 		request.Request.Header.Set(discover.HeaderDeviceID, deviceId)
 		response.Header().Set(ws.usedDeviceIdKey, deviceId)
+	}
+
+	// AppName / AppVersion（客户端上报，注入内部标准头供下游微服务使用）
+	if ws.usedClientAppKey != "" {
+		if appName := request.Header().Get(ws.usedClientAppKey + "Name"); appName != "" {
+			request.Request.Header.Set(discover.HeaderClientAppName, appName)
+		}
+		if appVersion := request.Header().Get(ws.usedClientAppKey + "Version"); appVersion != "" {
+			request.Request.Header.Set(discover.HeaderClientAppVersion, appVersion)
+		}
 	}
 }

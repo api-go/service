@@ -27,6 +27,89 @@ func TestSessionLogic(t *testing.T) {
 		t.Errorf("Expected value1 in new session instance, got %v", sess2.Get("key1"))
 	}
 
+	// 1.1 测试 Save 批量设置
+	sess3 := NewSession("test_batch", nil)
+	m := map[string]any{"a": 1, "b": "hello", "c": true}
+	if err := sess3.Save(m); err != nil {
+		t.Errorf("Save with map failed: %v", err)
+	}
+	sess4 := NewSession("test_batch", nil)
+	if sess4.Get("a") != 1 {
+		t.Errorf("Expected a=1, got %v", sess4.Get("a"))
+	}
+	if sess4.Get("b") != "hello" {
+		t.Errorf("Expected b=hello, got %v", sess4.Get("b"))
+	}
+	if sess4.Get("c") != true {
+		t.Errorf("Expected c=true, got %v", sess4.Get("c"))
+	}
+
+	// 1.2 测试 Save 无参数仍然正常工作
+	sess5 := NewSession("test_noarg", nil)
+	sess5.Set("x", "y")
+	if err := sess5.Save(); err != nil {
+		t.Errorf("Save without args failed: %v", err)
+	}
+	sess6 := NewSession("test_noarg", nil)
+	if sess6.Get("x") != "y" {
+		t.Errorf("Expected x=y, got %v", sess6.Get("x"))
+	}
+
+	// 1.3 测试 Load 批量读取
+	sess7 := NewSession("test_load", nil)
+	sess7.Set("k1", "v1")
+	sess7.Set("k2", "v2")
+	sess7.Set("k3", "v3")
+	_ = sess7.Save()
+
+	sess8 := NewSession("test_load", nil)
+	result := sess8.Load([]string{"k1", "k3"})
+	if len(result) != 2 {
+		t.Errorf("Expected 2 keys, got %d", len(result))
+	}
+	if result["k1"] != "v1" {
+		t.Errorf("Expected k1=v1, got %v", result["k1"])
+	}
+	if result["k3"] != "v3" {
+		t.Errorf("Expected k3=v3, got %v", result["k3"])
+	}
+	if _, ok := result["k2"]; ok {
+		t.Error("k2 should not be in partial Load result")
+	}
+
+	// 1.4 测试 Load 空参数返回全部数据
+	allData := sess8.Load(nil)
+	if len(allData) < 3 {
+		t.Errorf("Expected at least 3 keys in full Load, got %d", len(allData))
+	}
+
+	// 1.5 测试 Remove 多 key
+	sess9 := NewSession("test_remove", nil)
+	sess9.Set("a", 1)
+	sess9.Set("b", 2)
+	sess9.Set("c", 3)
+	sess9.Remove("a", "c")
+	_ = sess9.Save()
+
+	sess10 := NewSession("test_remove", nil)
+	if sess10.Get("a") != nil {
+		t.Errorf("Expected a removed, got %v", sess10.Get("a"))
+	}
+	if sess10.Get("b") != 2 {
+		t.Errorf("Expected b=2, got %v", sess10.Get("b"))
+	}
+	if sess10.Get("c") != nil {
+		t.Errorf("Expected c removed, got %v", sess10.Get("c"))
+	}
+
+	// 1.6 测试 Remove 无参数（安全无操作）
+	sess9.Remove()
+	_ = sess9.Save()
+	sess11 := NewSession("test_remove", nil)
+	if sess11.Get("b") != 2 {
+		t.Errorf("Expected b=2 after no-arg Remove, got %v", sess11.Get("b"))
+	}
+
 	// 2. 测试 AuthFuncs 逻辑
 	sess.Set("funcs", []string{"user.read", "user.write", "system.admin"})
 

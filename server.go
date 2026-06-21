@@ -110,6 +110,17 @@ var DefaultServer = NewWebServer()
 // Config 全局配置对象 (指向 DefaultServer.Config)
 var Config = &DefaultServer.Config
 
+func init() {
+	Config.NoLogHeaders = "X-Request-Id,X-Device-Id,X-Session-Id,Cookie,Device-Id,Session-Id"
+	Config.LogInputObjectNum = 10
+	Config.LogInputArrayNum = 5
+	Config.LogInputFieldSize = 20
+	Config.LogOutputObjectNum = 5
+	Config.LogOutputArrayNum = 3
+	Config.LogOutputFieldSize = 20
+	Config.LogOutputMaxSize = 200
+}
+
 func NewWebServer() *WebServer {
 	ws := &WebServer{
 		webServices:           make(map[string]map[string]*webServiceType),
@@ -134,6 +145,10 @@ func NewWebServer() *WebServer {
 		webAuthCheckers:       make(map[int]func(int, *log.Logger, *string, map[string]any, *Request, *Response, *WebServiceOptions) (pass bool, object any)),
 		injectObjects:         make(map[reflect.Type]any),
 		injectFunctions:       make(map[reflect.Type]func() any),
+
+			usedSessionIdKey: "Session-ID",
+			usedDeviceIdKey:  "Device-ID",
+			usedClientAppKey: "App",
 	}
 	return ws
 }
