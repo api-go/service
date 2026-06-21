@@ -1,9 +1,9 @@
 # Service Module Test Report
 
 ## 性能测试 (Benchmark)
-- 测试日期: 2026-06-21
-- 版本: v1.0.4
-- 指标: `BenchmarkRouting`: 2791 ns/op
+- 测试日期: 2026-06-22
+- 版本: v1.5.19
+- 指标: `BenchmarkRouting`: **5394 ns/op**
 - 环境: Darwin / Intel(R) Core(TM) i9-9980HK CPU @ 2.40GHz
 
 ## 单元测试覆盖 (Unit Test)
