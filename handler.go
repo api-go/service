@@ -22,6 +22,9 @@ type RouteHandler struct {
 
 func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ws := rh.ws
+	if ws == nil {
+		ws = DefaultServer
+	}
 	atomic.AddInt64(&rh.webRequestingNum, 1)
 	defer atomic.AddInt64(&rh.webRequestingNum, -1)
 

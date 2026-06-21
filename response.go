@@ -3,6 +3,7 @@ package service
 import (
 	"apigo.cc/go/cast"
 	"apigo.cc/go/file"
+	"apigo.cc/go/jsmod"
 	"io"
 	"net/http"
 )
@@ -74,7 +75,11 @@ func (r *Response) Write(bytes []byte) (int, error) {
 	if r.ProxyHeader != nil {
 		r.copyProxyHeader()
 	}
-	return r.Writer.Write(bytes)
+	n, err := r.Writer.Write(bytes)
+	if err != nil {
+		return n, jsmod.MakeError(err)
+	}
+	return n, nil
 }
 
 // PhysicalWrite 物理写入网线，绕过过滤器缓冲逻辑
@@ -83,12 +88,20 @@ func (r *Response) PhysicalWrite(bytes []byte) (int, error) {
 	if r.ProxyHeader != nil {
 		r.copyProxyHeader()
 	}
-	return r.Writer.Write(bytes)
+	n, err := r.Writer.Write(bytes)
+	if err != nil {
+		return n, jsmod.MakeError(err)
+	}
+	return n, nil
 }
 
 // WriteString 写入字符串响应
 func (r *Response) WriteString(s string) (int, error) {
-	return r.Write([]byte(s))
+	n, err := r.Write([]byte(s))
+	if err != nil {
+		return n, jsmod.MakeError(err)
+	}
+	return n, nil
 }
 
 // WriteHeader 设置响应状态码

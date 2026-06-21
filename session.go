@@ -2,6 +2,7 @@ package service
 
 import (
 	"apigo.cc/go/cast"
+	"apigo.cc/go/jsmod"
 	"apigo.cc/go/log"
 	"apigo.cc/go/redis"
 	"errors"
@@ -125,7 +126,7 @@ func (s *Session) Save() error {
 		return nil
 	} else {
 		if !s.conn.SETEX("SESS_"+s.id, timeout, s.data) {
-			return errors.New("redis save failed")
+			return jsmod.MakeError(errors.New("redis save failed"))
 		}
 		return nil
 	}

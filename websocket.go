@@ -1,6 +1,7 @@
 package service
 
 import (
+	"apigo.cc/go/jsmod"
 	"apigo.cc/go/log"
 	"github.com/gorilla/websocket"
 	"net/http"
@@ -18,43 +19,60 @@ type WebSocketConn struct {
 
 // Send 发送消息，支持 string, []byte 或 自动转 JSON
 func (c *WebSocketConn) Send(data any) error {
+	var err error
 	switch v := data.(type) {
 	case string:
-		return c.Conn.WriteMessage(websocket.TextMessage, []byte(v))
+		err = c.Conn.WriteMessage(websocket.TextMessage, []byte(v))
 	case []byte:
-		return c.Conn.WriteMessage(websocket.BinaryMessage, v)
+		err = c.Conn.WriteMessage(websocket.BinaryMessage, v)
 	default:
-		return c.Conn.WriteJSON(v)
+		err = c.Conn.WriteJSON(v)
 	}
+	if err != nil {
+		return jsmod.MakeError(err)
+	}
+	return nil
 }
 
 // ReadString 读取字符串消息
 func (c *WebSocketConn) ReadString() (string, error) {
 	_, b, err := c.Conn.ReadMessage()
-	return string(b), err
+	if err != nil {
+		return "", jsmod.MakeError(err)
+	}
+	return string(b), nil
 }
 
 // ReadBytes 读取二进制消息
 func (c *WebSocketConn) ReadBytes() ([]byte, error) {
 	_, b, err := c.Conn.ReadMessage()
-	return b, err
+	if err != nil {
+		return nil, jsmod.MakeError(err)
+	}
+	return b, nil
 }
 
 // ReadJSON 读取 JSON 消息
 func (c *WebSocketConn) ReadJSON(v any) error {
-	return c.Conn.ReadJSON(v)
+	if err := c.Conn.ReadJSON(v); err != nil {
+		return jsmod.MakeError(err)
+	}
+	return nil
 }
 
 // Close 关闭连接
 func (c *WebSocketConn) Close() error {
-	return c.Conn.Close()
+	if err := c.Conn.Close(); err != nil {
+		return jsmod.MakeError(err)
+	}
+	return nil
 }
 
 // Upgrade 将 HTTP 请求升级为 WebSocket 连接
 func Upgrade(response *Response, request *Request) (*WebSocketConn, error) {
 	conn, err := defaultUpgrader.Upgrade(response.Writer, request.Request, nil)
 	if err != nil {
-		return nil, err
+		return nil, jsmod.MakeError(err)
 	}
 	return &WebSocketConn{Conn: conn}, nil
 }

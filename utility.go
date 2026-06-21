@@ -28,6 +28,9 @@ func GetDefaultName() string {
 
 // GetServerIp 获取真实局域网 IP (UDP 8.8.8.8 伪拨号法)
 func GetServerIp() string {
+	if ip := os.Getenv("SERVICE_IP"); ip != "" {
+		return ip
+	}
 	conn, err := net.Dial("udp", "8.8.8.8:80")
 	if err == nil {
 		localAddr := conn.LocalAddr().(*net.UDPAddr)

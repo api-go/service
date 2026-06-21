@@ -1,5 +1,22 @@
 # CHANGELOG - go/service
 
+## v1.5.15 (2026-06-21)
+- **错误堆栈重构**:
+  - 重构 `js_export.go`，将匿名占位工厂函数改写为包级具名函数。
+  - 使用 `jsmod.MakeError` 包裹 `Upgrade` 返回的错误，并在 `Response`、`Session`、`WebSocketConn` 的相关出错方法中包裹返回的错误。
+- **修复**:
+  - 修复 `RouteHandler.ServeHTTP` 在 `RouteHandler.ws` 为空时可能触发的 nil 指针引用 panic，使其安全降级使用 `DefaultServer`。
+- **依赖对齐**:
+  - 升级依赖 `jsmod` 至 `v1.5.3`, `timer` (`v1.5.0`), `cast` 至 `v1.5.3`, `rand` 至 `v1.5.3`, `encoding` 至 `v1.5.4`, `shell` 至 `v1.5.3`, `safe` 至 `v1.5.2`, `id` 至 `v1.5.4`, `crypto` 至 `v1.5.3`, `file` 至 `v1.5.5`, `config` 至 `v1.5.3`, `log` 至 `v1.5.8`, `http` 至 `v1.5.3`, `redis` 至 `v1.5.6`, `starter` 至 `v1.5.5`, `discover` 至 `v1.5.3`。
+
+## v1.5.14 (2026-06-11)
+- **依赖对齐**:
+  - 对齐基础设施依赖到 v1.5.x。
+
+## v1.5.13 (2026-06-10)
+- **优化**:
+  - 对齐 JS 导出为 PascalCase 格式。
+
 ## v1.5.12 (2026-06-07)
 - **基础设施对齐: 切换至 starter v1.5.3 编排模式**:
   - 弃用已废弃的 `starter.Run()`，全面转向 `starter.Start() / starter.Wait()`。
