@@ -1,5 +1,26 @@
 # CHANGELOG - go/service
 
+## v1.5.20 (2026-06-22)
+- **Client Key 应答头条件化**:
+  - `Device-Id` / `Session-Id` 仅当请求头未携带时才写入应答头，避免客户端已持有 ID 时重复返回。
+  - 静态文件和 WebSocket 升级应答中不再写入 `Device-Id` / `Session-Id` 头，仅通过 Cookie 维护身份（浏览器 WebSocket API 不支持自定义请求头）。
+- **Client App 头命名规范化**:
+  - 客户端上报键名从 `AppName`/`AppVersion` 改为 `App-Name`/`App-Version`（与 `Device-Id`/`Session-Id` 一致使用破折号）。
+  - **Breaking**: 旧版客户端需同步修改请求头名称。
+- **配置字段重命名**:
+  - `NoLogHeaders` → `NoLogRequestHeaders`（请求头排除列表）。
+  - `NoLogOutputFields` → `NoLogResponseFields`（响应体字段排除）。
+  - 新增 `NoLogResponseHeaders`（响应头排除列表，用户可追加自定义字段）。
+  - **Breaking**: 使用了旧字段名的配置需同步修改。
+- **动态排除列表**:
+  - `NoLogRequestHeaders` 默认值动态构建（包含内部标准头 + 当前配置的 client key 名），用户只需追加自己关心的额外字段。
+  - 移除 `init()` 中的硬编码默认值。
+- **Cookie 头智能过滤**:
+  - `sanitizeLogHeaders` 对 `Cookie` 头不再整体排除，而是解析 Cookie 内容，仅剔除 key 命中排除列表的键值对（如 `Device-Id`/`Session-Id`），保留业务 Cookie。
+  - 排除列表同时适用于 Header 名匹配和 Cookie key 匹配。
+- **日志应答头排除**:
+  - 响应头日志捕获改为使用 `effectiveNoLogResponseHeaders()`，替代之前的硬编码空字符串。
+
 ## v1.5.19 (2026-06-22)
 - **依赖更新**:
   - 升级依赖 `id` 至 `v1.5.6`，`redis` 至 `v1.5.10`。

@@ -111,7 +111,7 @@ var DefaultServer = NewWebServer()
 var Config = &DefaultServer.Config
 
 func init() {
-	Config.NoLogHeaders = "X-Request-Id,X-Device-Id,X-Session-Id,Cookie,Device-Id,Session-Id"
+	// NoLogRequestHeaders / NoLogResponseHeaders 的默认值在日志捕获时动态构建
 	Config.LogInputObjectNum = 10
 	Config.LogInputArrayNum = 5
 	Config.LogInputFieldSize = 20

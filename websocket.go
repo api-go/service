@@ -78,6 +78,11 @@ func Upgrade(response *Response, request *Request) (*WebSocketConn, error) {
 }
 
 func (ws *WebServer) doWebsocketService(wsc *websocketServiceType, request *Request, response *Response, logger *log.Logger, object any) {
+	// WebSocket 浏览器 API 不支持自定义请求头，只能通过 Cookie 传递身份标识，
+	// 因此不应在升级应答中返回 Device-Id / Session-Id 头。
+	response.Header().Del(ws.usedDeviceIdKey)
+	response.Header().Del(ws.usedSessionIdKey)
+
 	wsConn, err := Upgrade(response, request)
 	if err != nil {
 		logger.Error("websocket upgrade failed", "error", err.Error())

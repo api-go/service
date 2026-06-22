@@ -137,14 +137,21 @@ func sanitizeSliceContent(s []any, opts sanitizeOpts, budget *int) []any {
 	return result
 }
 
-// sanitizeLogHeaders 过滤请求/响应头，排除 NoLogHeaders 中指定的字段
+// sanitizeLogHeaders 过滤请求/响应头，排除 noLogHeaders 中指定的字段。
+// 对于 Cookie 头，不整体排除，而是从 Cookie 内容中剔除 key 命中排除列表的键值对。
 func sanitizeLogHeaders(h http.Header, noLogHeaders string) map[string]string {
 	result := make(map[string]string)
-	excludes := strings.Split(noLogHeaders, ",")
+	excludes := splitAndTrim(noLogHeaders)
 	for k, v := range h {
+		if k == "Cookie" && len(excludes) > 0 {
+			if filtered := sanitizeCookieValue(v, excludes); filtered != "" {
+				result[k] = filtered
+			}
+			continue
+		}
 		skip := false
 		for _, ex := range excludes {
-			if ex != "" && strings.EqualFold(k, strings.TrimSpace(ex)) {
+			if strings.EqualFold(k, ex) {
 				skip = true
 				break
 			}
@@ -156,14 +163,52 @@ func sanitizeLogHeaders(h http.Header, noLogHeaders string) map[string]string {
 	return result
 }
 
+// sanitizeCookieValue 从 Cookie 原始值中剔除 key 命中排除列表的键值对。
+// 输入为原始 Cookie 头值（可能多个 key=value 以 "; " 或 ";" 分隔）。
+func sanitizeCookieValue(values []string, excludes []string) string {
+	raw := strings.Join(values, "; ")
+	pairs := strings.Split(raw, ";")
+	var kept []string
+	for _, pair := range pairs {
+		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
+		key, _, _ := strings.Cut(pair, "=")
+		key = strings.TrimSpace(key)
+		excluded := false
+		for _, ex := range excludes {
+			if strings.EqualFold(key, ex) {
+				excluded = true
+				break
+			}
+		}
+		if !excluded {
+			kept = append(kept, pair)
+		}
+	}
+	return strings.Join(kept, "; ")
+}
+
+func splitAndTrim(s string) []string {
+	if s == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	for i, p := range parts {
+		parts[i] = strings.TrimSpace(p)
+	}
+	return parts
+}
+
 // sanitizeRespBody 对响应体进行脱敏：尝试 JSON 解析后走对象脱敏，失败则按字符串截断
 func sanitizeRespBody(body []byte, cfg *ServiceConfig) any {
 	// 尝试解析为 JSON 对象
 	var parsed any
 	if err := cast.UnmarshalJSON(body, &parsed); err == nil && parsed != nil {
 		// 排除敏感字段
-		if cfg.NoLogOutputFields != "" {
-			parsed = stripFields(parsed, cfg.NoLogOutputFields)
+		if cfg.NoLogResponseFields != "" {
+			parsed = stripFields(parsed, cfg.NoLogResponseFields)
 		}
 		return sanitizeLogData(parsed, sanitizeOpts{
 			maxSize:   200,

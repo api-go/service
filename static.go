@@ -131,6 +131,10 @@ func (ws *WebServer) processStatic(requestPath string, request *Request, respons
 		return false
 	}
 
+	// 静态文件通过 Cookie 维护 ID，不应答 Device-Id / Session-Id 头
+	response.Header().Del(ws.usedDeviceIdKey)
+	response.Header().Del(ws.usedSessionIdKey)
+
 	// 检查 304
 	if ifModifiedSince := request.Header().Get("If-Modified-Since"); ifModifiedSince != "" {
 		if t, err := time.Parse(http.TimeFormat, ifModifiedSince); err == nil {

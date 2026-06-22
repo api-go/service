@@ -75,13 +75,13 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// 请求头
 			var reqHeaders map[string]string
 			if !ws.Config.NoLogAllHeaders {
-				reqHeaders = sanitizeLogHeaders(r.Header, ws.Config.NoLogHeaders)
+				reqHeaders = sanitizeLogHeaders(r.Header, ws.effectiveNoLogRequestHeaders())
 			}
 
 			// 响应头
 			var respHeaders map[string]string
 			if !ws.Config.NoLogAllHeaders {
-				respHeaders = sanitizeLogHeaders(response.Header().H, "")
+				respHeaders = sanitizeLogHeaders(response.Header().H, ws.effectiveNoLogResponseHeaders())
 			}
 
 			// 请求输入脱敏
@@ -434,8 +434,11 @@ func outputResult(response *Response, result any) {
 func (ws *WebServer) handleClientKeys(request *Request, response *Response) {
 	// SessionId
 	if ws.usedSessionIdKey != "" {
+		hasRequestSessionId := false
 		sessionId := request.Header().Get(ws.usedSessionIdKey)
-		if sessionId == "" && !ws.Config.SessionWithoutCookie {
+		if sessionId != "" {
+			hasRequestSessionId = true
+		} else if !ws.Config.SessionWithoutCookie {
 			if ck := request.GetCookie(ws.usedSessionIdKey); ck != nil {
 				sessionId = ck.Value
 			}
@@ -456,13 +459,18 @@ func (ws *WebServer) handleClientKeys(request *Request, response *Response) {
 			}
 		}
 		request.Request.Header.Set(discover.HeaderSessionID, sessionId)
-		response.Header().Set(ws.usedSessionIdKey, sessionId)
+		if !hasRequestSessionId {
+			response.Header().Set(ws.usedSessionIdKey, sessionId)
+		}
 	}
 
 	// DeviceId
 	if ws.usedDeviceIdKey != "" {
+		hasRequestDeviceId := false
 		deviceId := request.Header().Get(ws.usedDeviceIdKey)
-		if deviceId == "" && !ws.Config.DeviceWithoutCookie {
+		if deviceId != "" {
+			hasRequestDeviceId = true
+		} else if !ws.Config.DeviceWithoutCookie {
 			if ck := request.GetCookie(ws.usedDeviceIdKey); ck != nil {
 				deviceId = ck.Value
 			}
@@ -480,16 +488,41 @@ func (ws *WebServer) handleClientKeys(request *Request, response *Response) {
 			}
 		}
 		request.Request.Header.Set(discover.HeaderDeviceID, deviceId)
-		response.Header().Set(ws.usedDeviceIdKey, deviceId)
+		if !hasRequestDeviceId {
+			response.Header().Set(ws.usedDeviceIdKey, deviceId)
+		}
 	}
 
-	// AppName / AppVersion（客户端上报，注入内部标准头供下游微服务使用）
+	// App-Name / App-Version（客户端上报，注入内部标准头供下游微服务使用）
 	if ws.usedClientAppKey != "" {
-		if appName := request.Header().Get(ws.usedClientAppKey + "Name"); appName != "" {
+		if appName := request.Header().Get(ws.usedClientAppKey + "-Name"); appName != "" {
 			request.Request.Header.Set(discover.HeaderClientAppName, appName)
 		}
-		if appVersion := request.Header().Get(ws.usedClientAppKey + "Version"); appVersion != "" {
+		if appVersion := request.Header().Get(ws.usedClientAppKey + "-Version"); appVersion != "" {
 			request.Request.Header.Set(discover.HeaderClientAppVersion, appVersion)
 		}
 	}
+}
+
+// effectiveNoLogRequestHeaders 返回请求头排除列表（动态默认值 + 用户配置追加）
+func (ws *WebServer) effectiveNoLogRequestHeaders() string {
+	parts := []string{"X-Request-Id", "X-Device-Id", "X-Session-Id"}
+	if ws.usedDeviceIdKey != "" {
+		parts = append(parts, ws.usedDeviceIdKey)
+	}
+	if ws.usedSessionIdKey != "" {
+		parts = append(parts, ws.usedSessionIdKey)
+	}
+	if ws.usedClientAppKey != "" {
+		parts = append(parts, ws.usedClientAppKey+"-Name", ws.usedClientAppKey+"-Version")
+	}
+	if ws.Config.NoLogRequestHeaders != "" {
+		parts = append(parts, ws.Config.NoLogRequestHeaders)
+	}
+	return strings.Join(parts, ",")
+}
+
+// effectiveNoLogResponseHeaders 返回响应头排除列表（用户配置追加）
+func (ws *WebServer) effectiveNoLogResponseHeaders() string {
+	return ws.Config.NoLogResponseHeaders
 }

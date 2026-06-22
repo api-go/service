@@ -26,11 +26,12 @@ type ServiceConfig struct {
 	NoLogInput                    bool                  // 不记录请求输入
 	NoLogOutput                   bool                  // 不记录响应输出
 	NoLogAllHeaders               bool                  // 不记录所有请求/响应头
-	NoLogHeaders                  string                // 不记录请求头中包含的这些字段，多个字段用逗号分隔
+	NoLogRequestHeaders           string                // 不记录请求头中包含的这些字段（追加到动态默认列表），多个字段用逗号分隔
+	NoLogResponseHeaders          string                // 不记录响应头中包含的这些字段（追加到动态默认列表），多个字段用逗号分隔
 	LogInputObjectNum             int                   // 请求对象中最多记录的 key 数
 	LogInputArrayNum              int                   // 请求数组中最多记录的元素数
 	LogInputFieldSize             int                   // 请求单个字段的字符串截断长度
-	NoLogOutputFields             string                // 不记录响应字段中包含的这些字段
+	NoLogResponseFields           string                // 不记录响应字段中包含的这些字段
 	LogOutputObjectNum            int                   // 响应对象中最多记录的 key 数
 	LogOutputArrayNum             int                   // 响应数组中最多记录的元素数
 	LogOutputFieldSize            int                   // 响应单个字段的字符串截断长度

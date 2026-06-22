@@ -2,7 +2,7 @@
 
 ## 性能测试 (Benchmark)
 - 测试日期: 2026-06-22
-- 版本: v1.5.19
+- 版本: v1.5.20
 - 指标: `BenchmarkRouting`: **5394 ns/op**
 - 环境: Darwin / Intel(R) Core(TM) i9-9980HK CPU @ 2.40GHz
 
@@ -27,7 +27,9 @@
 - [x] `TestSanitizeScalars` ~ `TestSanitizeMixedSlice`: 日志脱敏 10 个测试（标量/对象/数组/嵌套/预算/Unicode）
 - [x] `TestSessionLogic`: Session Save/Load/Remove 及 AuthFuncs
 - [x] `TestSessionInjection`: Session HTTP 注入流程
-- [x] Logging Filters: NoLogInput/NoLogOutput/NoLogAllHeaders/NoLogGets/NoLogHeaders
+- [x] Logging Filters: NoLogInput/NoLogOutput/NoLogAllHeaders/NoLogGets/NoLogRequestHeaders/NoLogResponseHeaders/NoLogResponseFields
+- [x] Client Keys: Device-Id/Session-Id 应答头条件化（请求有则不应答）、静态文件/WebSocket 仅 Cookie
+- [x] Cookie 头智能过滤: 排除列表中 key 从 Cookie 内容中剔除，保留业务 Cookie
 - [x] Response Body: 200 响应和 dev 模式下 keepBody 捕获
 
 ## 基础设施对齐验证
