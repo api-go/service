@@ -1,10 +1,14 @@
 # Service Module Test Report
 
+## v1.5.21 验证
+- `go list -m all`：模块图使用 `discover v1.5.7`、`redis v1.5.11` 与稳定版 `redigo v1.9.3`。
+- `go test -v ./...` 与 `go test -bench=. ./...` 全部通过。
+
 ## 性能测试 (Benchmark)
-- 测试日期: 2026-06-22
-- 版本: v1.5.20
-- 指标: `BenchmarkRouting`: **5394 ns/op**
-- 环境: Darwin / Intel(R) Core(TM) i9-9980HK CPU @ 2.40GHz
+- 测试日期: 2026-07-18
+- 版本: v1.5.21
+- 指标: `BenchmarkRouting`: **2382 ns/op**
+- 环境: Darwin / Apple M3 Max
 
 ## 单元测试覆盖 (Unit Test)
 - [x] `TestServeHTTP`: 基础请求与响应

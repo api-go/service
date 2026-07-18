@@ -1,5 +1,11 @@
 # CHANGELOG - go/service
 
+## v1.5.21 (2026-07-18)
+- **依赖校验修复**: 升级 `discover` 至 `v1.5.7`、`redis` 至 `v1.5.11`，并使用稳定版 `redigo v1.9.3`。
+- **依赖对齐**: 升级 `cast` 至 `v1.5.4`、`crypto` 至 `v1.5.4`、`encoding` 至 `v1.5.5`、`starter` 至 `v1.5.6`。
+- **Discover API 对齐**: 服务注册与代理调用改用新版包级 Discover API；调用配置转换为统一的协议、超时和 Token 字符串格式。
+- **Header 命名对齐**: 内部引用统一采用 `RequestId`、`SessionId`、`DeviceId`、`UserId`、`ClientIp` Go 命名。
+
 ## v1.5.20 (2026-06-22)
 - **Client Key 应答头条件化**:
   - `Device-Id` / `Session-Id` 仅当请求头未携带时才写入应答头，避免客户端已持有 ID 时重复返回。

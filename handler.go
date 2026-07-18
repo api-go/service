@@ -30,10 +30,10 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer atomic.AddInt64(&rh.webRequestingNum, -1)
 
 	tracker := timer.Start()
-	requestId := r.Header.Get(discover.HeaderRequestID)
+	requestId := r.Header.Get(discover.HeaderRequestId)
 	if requestId == "" {
 		requestId = IDMaker.Get10Bytes14MPerSecond()
-		r.Header.Set(discover.HeaderRequestID, requestId)
+		r.Header.Set(discover.HeaderRequestId, requestId)
 	}
 
 	request := NewRequest(r)
@@ -458,7 +458,7 @@ func (ws *WebServer) handleClientKeys(request *Request, response *Response) {
 				})
 			}
 		}
-		request.Request.Header.Set(discover.HeaderSessionID, sessionId)
+		request.Request.Header.Set(discover.HeaderSessionId, sessionId)
 		if !hasRequestSessionId {
 			response.Header().Set(ws.usedSessionIdKey, sessionId)
 		}
@@ -487,7 +487,7 @@ func (ws *WebServer) handleClientKeys(request *Request, response *Response) {
 				})
 			}
 		}
-		request.Request.Header.Set(discover.HeaderDeviceID, deviceId)
+		request.Request.Header.Set(discover.HeaderDeviceId, deviceId)
 		if !hasRequestDeviceId {
 			response.Header().Set(ws.usedDeviceIdKey, deviceId)
 		}

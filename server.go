@@ -5,7 +5,6 @@ import (
 	"apigo.cc/go/discover"
 	"apigo.cc/go/log"
 	"apigo.cc/go/redis"
-	"apigo.cc/go/safe"
 	"apigo.cc/go/starter"
 	"apigo.cc/go/watch"
 	"context"
@@ -29,13 +28,13 @@ type staticType struct {
 }
 
 type WebServer struct {
-	Config      ServiceConfig
-	server      *http.Server
-	listener    net.Listener
-	Addr        string
-	useDiscover bool
-	discoverer  *discover.Discoverer
-	logger      *log.Logger
+	Config          ServiceConfig
+	server          *http.Server
+	listener        net.Listener
+	Addr            string
+	useDiscover     bool
+	discoverStarted bool
+	logger          *log.Logger
 
 	// 运行时状态
 	serverId   string
@@ -146,16 +145,32 @@ func NewWebServer() *WebServer {
 		injectObjects:         make(map[reflect.Type]any),
 		injectFunctions:       make(map[reflect.Type]func() any),
 
-			usedSessionIdKey: "Session-ID",
-			usedDeviceIdKey:  "Device-ID",
-			usedClientAppKey: "App",
+		usedSessionIdKey: "Session-ID",
+		usedDeviceIdKey:  "Device-ID",
+		usedClientAppKey: "App",
 	}
 	return ws
 }
 
-// SetDiscovererForTest 提供给测试用例使用的后门方法，用于模拟断开或重置服务发现
-func SetDiscovererForTest(d *discover.Discoverer) {
-	DefaultServer.discoverer = d
+func makeDiscoverCallConfig(call CallConfig, fallbackTimeout int) string {
+	protocol := "http"
+	if call.SSL {
+		protocol = "https"
+	} else if call.Http2 {
+		protocol = "h2c"
+	}
+	parts := []string{protocol}
+	timeout := call.Timeout
+	if timeout <= 0 {
+		timeout = fallbackTimeout
+	}
+	if timeout > 0 {
+		parts = append(parts, fmt.Sprintf("%dms", timeout))
+	}
+	if call.Token != "" {
+		parts = append(parts, call.Token)
+	}
+	return strings.Join(parts, ":")
 }
 
 // ApplyConfig 将 ServiceConfig 中的路由策略应用到内部的文件级策略中
@@ -395,30 +410,14 @@ func (ws *WebServer) Start(ctx context.Context, logger *log.Logger) error {
 		ip := GetServerIp()
 		discoverAddr := fmt.Sprintf("%s:%s", ip, port)
 
-		discConf := discover.Config{
-			Weight:         ws.Config.Weight,
-			CallRetryTimes: 10,
-			Calls:          make(map[string]discover.CallConfig),
+		weight := ws.Config.Weight
+		if weight <= 0 {
+			weight = 100
 		}
 
-		if discConf.Weight <= 0 {
-			discConf.Weight = 100
-		}
-
+		calls := make(map[string]string, len(ws.Config.Calls))
 		for name, call := range ws.Config.Calls {
-			dc := discover.CallConfig{
-				Http2: call.Http2,
-				SSL:   call.SSL,
-			}
-			if call.Timeout > 0 {
-				dc.Timeout = time.Duration(call.Timeout) * time.Millisecond
-			} else if ws.Config.RedirectTimeout > 0 {
-				dc.Timeout = time.Duration(ws.Config.RedirectTimeout) * time.Millisecond
-			}
-			if call.Token != "" {
-				dc.Token = safe.NewSafeBuf([]byte(call.Token))
-			}
-			discConf.Calls[name] = dc
+			calls[name] = makeDiscoverCallConfig(call, ws.Config.RedirectTimeout)
 		}
 
 		registry := ws.Config.Register
@@ -427,8 +426,15 @@ func (ws *WebServer) Start(ctx context.Context, logger *log.Logger) error {
 		}
 
 		if registry != "" {
-			ws.discoverer = discover.Start(registry, appName, discoverAddr, logger, discConf)
-			if ws.discoverer != nil {
+			discover.Init()
+			discover.Config.Registry = registry
+			discover.Config.App = appName
+			discover.Config.Weight = weight
+			discover.Config.CallRetryTimes = 10
+			discover.Config.Calls = calls
+			discover.SetLogger(logger)
+			ws.discoverStarted = discover.Start(discoverAddr)
+			if ws.discoverStarted {
 				logger.Info("discover registered", "app", appName, "addr", discoverAddr)
 			}
 		}
@@ -468,8 +474,9 @@ func (ws *WebServer) Stop(ctx context.Context) error {
 	ws.shutdownHooks = nil
 	ws.shutdownHooksLock.Unlock()
 
-	if ws.discoverer != nil {
-		ws.discoverer.Stop()
+	if ws.discoverStarted {
+		discover.Stop()
+		ws.discoverStarted = false
 	}
 	if ws.server != nil {
 		if err := ws.server.Shutdown(ctx); err != nil {

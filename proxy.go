@@ -1,6 +1,7 @@
 package service
 
 import (
+	"apigo.cc/go/discover"
 	gohttp "apigo.cc/go/http"
 	"apigo.cc/go/log"
 	"fmt"
@@ -172,12 +173,12 @@ func (ws *WebServer) processProxy(request *Request, response *Response, logger *
 		copyResponse(res, response, logger)
 	} else {
 		// Discover 代理
-		if ws.discoverer == nil {
+		if !ws.discoverStarted {
 			logger.Error("proxy failed: Discoverer is not initialized")
 			response.WriteHeader(http.StatusBadGateway)
 			return true
 		}
-		caller := ws.discoverer.NewCaller(request.Request, logger)
+		caller := discover.NewCaller(request.Request, logger)
 		caller.NoBody = true
 		res, _ := caller.ManualDoWithNode(request.Method, app, "", path, request.Body)
 		copyResponse(res, response, logger)

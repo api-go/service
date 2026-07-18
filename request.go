@@ -188,22 +188,22 @@ func (r *Request) MakeUrl(path string) string {
 
 // DeviceId 获取设备 ID
 func (r *Request) DeviceId() string {
-	return r.Header().Get(discover.HeaderDeviceID)
+	return r.Header().Get(discover.HeaderDeviceId)
 }
 
 // SessionId 获取会话 ID
 func (r *Request) SessionId() string {
-	return r.Header().Get(discover.HeaderSessionID)
+	return r.Header().Get(discover.HeaderSessionId)
 }
 
 // SetUserId 设置用户 ID（传递给下游）
 func (r *Request) SetUserId(userId string) {
-	r.Header().Set(discover.HeaderUserID, userId)
+	r.Header().Set(discover.HeaderUserId, userId)
 }
 
 // ClientIp 获取真实 IP
 func (r *Request) ClientIp() string {
-	ip := r.Header().Get(discover.HeaderClientIP)
+	ip := r.Header().Get(discover.HeaderClientIp)
 	if ip == "" {
 		ip = r.Header().Get(discover.HeaderForwardedFor)
 	}
