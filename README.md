@@ -136,6 +136,6 @@ service:
 ## 基础设施对齐
 - **类型转换**: `apigo.cc/go/cast`
 - **日志系统**: `apigo.cc/go/log`
-- **服务发现**: `apigo.cc/go/discover`
+- **服务发现**: `apigo.cc/go/discover`（`service v1.5.22` 对齐 `discover v1.5.8`）
 - **分布式 ID**: `apigo.cc/go/id`
 - **文件操作**: `apigo.cc/go/file`

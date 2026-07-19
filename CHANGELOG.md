@@ -1,5 +1,10 @@
 # CHANGELOG - go/service
 
+## v1.5.22 (2026-07-19)
+- **服务发现升级**: 升级 `discover` 至 `v1.5.8`，继承 Redis 类型化注册、心跳、注销和节点拉取流程。
+- **依赖对齐**: 随模块图同步升级 `cast`、`config`、`crypto`、`encoding`、`file`、`http`、`id`、`log`、`rand`、`safe`、`shell` 的 patch 版本。
+- **兼容性**: 本次仅升级基础依赖，公开 API 与运行配置保持不变。
+
 ## v1.5.21 (2026-07-18)
 - **依赖校验修复**: 升级 `discover` 至 `v1.5.7`、`redis` 至 `v1.5.11`，并使用稳定版 `redigo v1.9.3`。
 - **依赖对齐**: 升级 `cast` 至 `v1.5.4`、`crypto` 至 `v1.5.4`、`encoding` 至 `v1.5.5`、`starter` 至 `v1.5.6`。
