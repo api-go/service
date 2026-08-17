@@ -1,5 +1,11 @@
 # Service Module Test Report
 
+## v1.5.23 验证
+- `TestResponseWriteBytes` 验证动态字节数组写入时保持 UTF-8 内容不变。
+- `TestResponseWriteBypassesOutputFilterBuffer` 验证直接响应即使存在输出过滤器也保持实时写入。
+- `TestResponseWriteFilteredOptsIntoOutputFilterBuffer` 验证显式过滤写入仍可由静态 HTML 注入等后置过滤器处理。
+- `go test -v ./...` 与 `go test -bench=. ./...` 全部通过。
+
 ## v1.5.22 验证
 - `go list -m all`：模块图使用 `discover v1.5.8`、`redis v1.5.11` 与稳定版 `redigo v1.9.3`。
 - `go test -v ./...` 与 `go test -bench=. ./...` 全部通过。
@@ -9,9 +15,9 @@
 - `go test -v ./...` 与 `go test -bench=. ./...` 全部通过。
 
 ## 性能测试 (Benchmark)
-- 测试日期: 2026-07-19
-- 版本: v1.5.22
-- 指标: `BenchmarkRouting`: **2269 ns/op**
+- 测试日期: 2026-08-17
+- 版本: v1.5.23
+- 指标: `BenchmarkRouting`: **2312 ns/op**
 - 环境: Darwin / Apple M3 Max
 
 ## 单元测试覆盖 (Unit Test)
@@ -39,6 +45,7 @@
 - [x] Client Keys: Device-Id/Session-Id 应答头条件化（请求有则不应答）、静态文件/WebSocket 仅 Cookie
 - [x] Cookie 头智能过滤: 排除列表中 key 从 Cookie 内容中剔除，保留业务 Cookie
 - [x] Response Body: 200 响应和 dev 模式下 keepBody 捕获
+- [x] Response Dynamic Bytes: 低代码动态数组通过 `WriteBytes` 写入时保持 UTF-8 字节不变
 
 ## 基础设施对齐验证
 - [x] 成功集成 `apigo.cc/go/cast` 用于参数解析与类型强转。

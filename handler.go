@@ -204,7 +204,12 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 filter:
-	// 7. 后置过滤器 (即使 response.changed 也要执行，比如静态文件的 HTML 注入)
+	// Direct response writes are already on the wire and intentionally bypass
+	// output filters. Static responses opt in through WriteFiltered.
+	if response.changed && !response.filteredWrite && result == nil {
+		return
+	}
+	// 7. 后置过滤器
 	for _, filter := range ws.outFilters {
 		newResult, done := filter(args, request, response, result, requestLogger)
 		if newResult != nil {
@@ -223,7 +228,7 @@ filter:
 		// 过滤器模式：所有内容都应该从 result 或 response.body 中写出
 		if result != nil {
 			outputResult(response, result)
-		} else if response.changed {
+		} else if response.filteredWrite {
 			response.PhysicalWrite(response.body)
 		}
 	} else {

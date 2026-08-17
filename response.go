@@ -4,8 +4,10 @@ import (
 	"apigo.cc/go/cast"
 	"apigo.cc/go/file"
 	"apigo.cc/go/jsmod"
+	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 )
 
 // Response 封装 http.ResponseWriter
@@ -13,14 +15,15 @@ type Response struct {
 	Id            string
 	Writer        http.ResponseWriter `js:"-"`
 	Code          int
-	body          []byte              `js:"-"`
-	outLen        int                 `js:"-"`
-	changed       bool                `js:"-"`
-	headerWritten bool                `js:"-"`
-	dontLog200    bool                `js:"-"`
-	dontLogArgs   []string            `js:"-"`
-	ProxyHeader   *http.Header        `js:"-"`
-	server        *WebServer          `js:"-"`
+	body          []byte       `js:"-"`
+	outLen        int          `js:"-"`
+	changed       bool         `js:"-"`
+	filteredWrite bool         `js:"-"`
+	headerWritten bool         `js:"-"`
+	dontLog200    bool         `js:"-"`
+	dontLogArgs   []string     `js:"-"`
+	ProxyHeader   *http.Header `js:"-"`
+	server        *WebServer   `js:"-"`
 }
 
 func (r *Response) SetCookie(cookie *Cookie) {
@@ -61,12 +64,6 @@ func (r *Response) Write(bytes []byte) (int, error) {
 	r.changed = true
 	r.outLen += len(bytes)
 
-	// 如果有输出过滤器，我们必须先缓冲，不能直接写入网线，否则会导致重复输出
-	if r.server != nil && r.server.hasOutFilter {
-		r.body = append(r.body, bytes...)
-		return len(bytes), nil
-	}
-
 	// 缓冲 body 用于日志记录
 	r.keepBody(bytes)
 
@@ -78,6 +75,81 @@ func (r *Response) Write(bytes []byte) (int, error) {
 		return n, jsmod.MakeError(err)
 	}
 	return n, nil
+}
+
+// WriteFiltered buffers bytes for registered output filters. Direct Write calls
+// remain streamable and bypass output filters.
+func (r *Response) WriteFiltered(bytes []byte) (int, error) {
+	if r.server == nil || !r.server.hasOutFilter {
+		return r.Write(bytes)
+	}
+	r.checkWriteHeader()
+	r.changed = true
+	r.filteredWrite = true
+	r.outLen += len(bytes)
+	r.body = append(r.body, bytes...)
+	return len(bytes), nil
+}
+
+// WriteBytes writes a byte array received through a dynamic runtime without
+// converting its bytes to text first. This keeps UTF-8 stream chunks intact.
+func (r *Response) WriteBytes(value any) (int, error) {
+	bytes, err := responseBytes(value)
+	if err != nil {
+		return 0, jsmod.MakeError(err)
+	}
+	return r.Write(bytes)
+}
+
+func responseBytes(value any) ([]byte, error) {
+	if value == nil {
+		return nil, nil
+	}
+	if bytes, ok := value.([]byte); ok {
+		return bytes, nil
+	}
+	if text, ok := value.(string); ok {
+		return []byte(text), nil
+	}
+
+	rv := reflect.ValueOf(value)
+	if rv.Kind() != reflect.Array && rv.Kind() != reflect.Slice {
+		return nil, fmt.Errorf("response bytes must be a string or byte array, got %T", value)
+	}
+	bytes := make([]byte, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		item := rv.Index(i)
+		for item.IsValid() && (item.Kind() == reflect.Interface || item.Kind() == reflect.Pointer) {
+			if item.IsNil() {
+				return nil, fmt.Errorf("response byte at index %d is nil", i)
+			}
+			item = item.Elem()
+		}
+		if !item.IsValid() {
+			return nil, fmt.Errorf("response byte at index %d is nil", i)
+		}
+		switch item.Kind() {
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			if item.Uint() > 255 {
+				return nil, fmt.Errorf("response byte at index %d is out of range", i)
+			}
+			bytes[i] = byte(item.Uint())
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			if item.Int() < 0 || item.Int() > 255 {
+				return nil, fmt.Errorf("response byte at index %d is out of range", i)
+			}
+			bytes[i] = byte(item.Int())
+		case reflect.Float32, reflect.Float64:
+			n := item.Float()
+			if n < 0 || n > 255 || n != float64(byte(n)) {
+				return nil, fmt.Errorf("response byte at index %d is out of range", i)
+			}
+			bytes[i] = byte(n)
+		default:
+			return nil, fmt.Errorf("response byte at index %d has type %s", i, item.Kind())
+		}
+	}
+	return bytes, nil
 }
 
 // keepBody 缓冲数据用于日志记录，限制大小防止内存问题

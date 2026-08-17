@@ -116,7 +116,7 @@ func (ws *WebServer) processStatic(requestPath string, request *Request, respons
 		if len(indexFiles) == 0 {
 			indexFiles = []string{"index.html", "index.htm"}
 		}
-		
+
 		for _, indexFile := range indexFiles {
 			f := filepath.Join(filePath, indexFile)
 			if i := file.GetFileInfo(f); i != nil && !i.IsDir {
@@ -159,6 +159,6 @@ func (ws *WebServer) processStatic(requestPath string, request *Request, respons
 		return false
 	}
 
-	_, _ = response.Write(data)
+	_, _ = response.WriteFiltered(data)
 	return true
 }

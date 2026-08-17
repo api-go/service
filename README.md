@@ -80,6 +80,8 @@ func main() {
 - **文档生成**: `service.MakeDocument()` 返回全量接口描述
 - **依赖注入**: `service.GetInjectT[T]()` 快速获取已注入的对象或组件
 
+低代码需要转发二进制或 SSE 流时，使用 `response.WriteBytes(chunk)` 原样写入动态运行时提供的字节数组；文本输出继续使用 `response.WriteString(text)`。`Write`、`WriteBytes` 和 `WriteString` 都直接写入响应并保持流式行为，不会被全局输出过滤器强制缓冲；确实需要过滤器处理的内容应显式使用 `response.WriteFiltered(bytes)`。
+
 ## 配置指南 (ServiceConfig)
 
 详细配置项可查阅 `config.go` 中的 `ServiceConfig` 结构。通过 `config.Load` 支持从 `env.yml` 或环境变量加载。

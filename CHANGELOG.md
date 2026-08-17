@@ -1,5 +1,10 @@
 # CHANGELOG - go/service
 
+## v1.5.23 (2026-08-17)
+- **流式响应**: `Response.Write` 保持直接写入和实时 Flush，不再因服务注册了输出过滤器而被统一缓冲。
+- **显式过滤**: 新增 `Response.WriteFiltered`，静态文件等确实需要输出过滤器处理的内容可显式进入缓冲流程。
+- **低代码字节桥接**: 新增 `Response.WriteBytes`，可将动态运行时的字节数组无损写入 SSE 或二进制响应。
+
 ## v1.5.22 (2026-07-19)
 - **服务发现升级**: 升级 `discover` 至 `v1.5.8`，继承 Redis 类型化注册、心跳、注销和节点拉取流程。
 - **依赖对齐**: 随模块图同步升级 `cast`、`config`、`crypto`、`encoding`、`file`、`http`、`id`、`log`、`rand`、`safe`、`shell` 的 patch 版本。
