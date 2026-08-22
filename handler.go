@@ -2,6 +2,7 @@ package service
 
 import (
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -152,6 +153,11 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s, wsc = ws.findService(r.Method, host, path, args)
+	if s == nil && wsc == nil {
+		ws.webServicesLock.RLock()
+		s = ws.fallbackService
+		ws.webServicesLock.RUnlock()
+	}
 
 	// 4. 参数解析 (Form & Body)
 	parseRequestArgs(request, args)
@@ -240,8 +246,49 @@ filter:
 }
 
 func hostOnly(host string) string {
-	h, _, _ := strings.Cut(host, ":")
-	return h
+	h, _, err := net.SplitHostPort(host)
+	if err == nil {
+		return strings.Trim(h, "[]")
+	}
+	if strings.Count(host, ":") == 1 {
+		h, _, _ = strings.Cut(host, ":")
+		return h
+	}
+	return strings.Trim(host, "[]")
+}
+
+func hostCandidates(host string) []string {
+	host = strings.ToLower(strings.TrimSpace(host))
+	hostName, port := hostOnly(host), ""
+	if _, parsedPort, err := net.SplitHostPort(host); err == nil {
+		port = parsedPort
+	} else if strings.Count(host, ":") == 1 {
+		_, port, _ = strings.Cut(host, ":")
+	}
+	hostName = strings.TrimSuffix(hostName, ".")
+	normalizedHost := hostName
+	if port != "" {
+		normalizedHost = net.JoinHostPort(hostName, port)
+	}
+	candidates := []string{normalizedHost}
+	if port != "" {
+		candidates = append(candidates, hostName, ":"+port)
+	}
+	candidates = append(candidates, "*")
+	out := candidates[:0]
+	seen := map[string]bool{}
+	for _, candidate := range candidates {
+		if candidate != "" && !seen[candidate] {
+			seen[candidate] = true
+			out = append(out, candidate)
+		}
+	}
+	return out
+}
+
+// HostCandidates returns route keys from most specific to the global fallback.
+func HostCandidates(host string) []string {
+	return append([]string(nil), hostCandidates(host)...)
 }
 
 func (ws *WebServer) findService(method, host, path string, args map[string]any) (*webServiceType, *websocketServiceType) {
@@ -249,12 +296,7 @@ func (ws *WebServer) findService(method, host, path string, args map[string]any)
 	defer ws.webServicesLock.RUnlock()
 
 	// 1. 准备 Host 候选列表: "host:port", "host", ":port", "*"
-	hostOnly, port, _ := strings.Cut(host, ":")
-	hosts := []string{host}
-	if port != "" {
-		hosts = append(hosts, hostOnly, ":"+port)
-	}
-	hosts = append(hosts, "*")
+	hosts := hostCandidates(host)
 
 	// 2. 匹配 Web Service
 	for _, h := range hosts {

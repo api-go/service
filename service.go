@@ -155,6 +155,25 @@ func (ws *WebServer) Register(method, path string, serviceFunc any) *webServiceT
 	return ws.Host("*").Register(method, path, serviceFunc)
 }
 
+// SetFallback sets the handler used after static files and registered routes miss.
+func SetFallback(serviceFunc any) *webServiceType {
+	return DefaultServer.SetFallback(serviceFunc)
+}
+
+func (ws *WebServer) SetFallback(serviceFunc any) *webServiceType {
+	s, err := makeCachedService(serviceFunc)
+	if err != nil {
+		return &webServiceType{}
+	}
+	s.host = "*"
+	s.method = "*"
+	s.path = "*"
+	ws.webServicesLock.Lock()
+	ws.fallbackService = s
+	ws.webServicesLock.Unlock()
+	return s
+}
+
 // RegisterWebsocket 注册一个 WebSocket 服务 (使用默认 Host "*")
 func RegisterWebsocket(path string, serviceFunc any) *websocketServiceType {
 	return DefaultServer.RegisterWebsocket(path, serviceFunc)
@@ -632,4 +651,3 @@ func (ws *WebServer) initWebDev(logger *log.Logger) {
 		})
 	})
 }
-

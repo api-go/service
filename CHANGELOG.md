@@ -1,5 +1,11 @@
 # CHANGELOG - go/service
 
+## v1.5.24 (2026-08-22)
+- **动态静态源**: 新增 `StaticFS` 与 `ReplaceStaticFS`，可以按 Host 原子替换自定义 `http.FileSystem`；增加 `ReplaceStaticFSExclusive`，支持选中虚拟主机后隔离后续 Host 静态源。
+- **Host 一致性**: Static 与 Service 共用 `host:port → host → :port → *` 候选顺序。
+- **流式静态响应**: 自定义静态源通过 `http.ServeContent` 支持 Range、HEAD 和大文件流式读取；非开发模式静态内容默认绕过 output filter。
+- **路由兜底**: 新增 `SetFallback`，在静态文件和注册路由均未命中时进入统一处理链。
+
 ## v1.5.23 (2026-08-17)
 - **流式响应**: `Response.Write` 保持直接写入和实时 Flush，不再因服务注册了输出过滤器而被统一缓冲。
 - **显式过滤**: 新增 `Response.WriteFiltered`，静态文件等确实需要输出过滤器处理的内容可显式进入缓冲流程。

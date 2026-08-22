@@ -3,13 +3,21 @@ package service
 import (
 	"apigo.cc/go/file"
 	"apigo.cc/go/log"
+	"io"
 	"mime"
 	"net/http"
 	"net/url"
+	pathpkg "path"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
+
+type staticFSMatch struct {
+	fileSystem http.FileSystem
+	name       string
+}
 
 // Static 注册静态文件目录
 func (hc *HostContext) Static(path, rootPath string) *HostContext {
@@ -28,6 +36,61 @@ func Static(path, rootPath string) {
 
 func (ws *WebServer) Static(path, rootPath string) {
 	ws.Host("*").Static(path, rootPath)
+}
+
+// StaticFS registers a custom static file source for a URL prefix.
+func (hc *HostContext) StaticFS(path string, source http.FileSystem) *HostContext {
+	host := hc.host
+	if host == "*" {
+		host = ""
+	}
+	hc.ws.staticsByHostLock.Lock()
+	if hc.ws.staticFSByHost[host] == nil {
+		hc.ws.staticFSByHost[host] = map[string]http.FileSystem{}
+	}
+	hc.ws.staticFSByHost[host][path] = source
+	hc.ws.staticsByHostLock.Unlock()
+	return hc
+}
+
+// ReplaceStaticFS atomically replaces custom static file sources for a host.
+func ReplaceStaticFS(host string, config map[string]http.FileSystem) {
+	DefaultServer.ReplaceStaticFS(host, config)
+}
+
+func (ws *WebServer) ReplaceStaticFS(host string, config map[string]http.FileSystem) {
+	ws.replaceStaticFS(host, config, false)
+}
+
+// ReplaceStaticFSExclusive atomically replaces custom static file sources for
+// a host and stops custom StaticFS fallback after that host is selected.
+func ReplaceStaticFSExclusive(host string, config map[string]http.FileSystem) {
+	DefaultServer.ReplaceStaticFSExclusive(host, config)
+}
+
+func (ws *WebServer) ReplaceStaticFSExclusive(host string, config map[string]http.FileSystem) {
+	ws.replaceStaticFS(host, config, true)
+}
+
+func (ws *WebServer) replaceStaticFS(host string, config map[string]http.FileSystem, exclusive bool) {
+	if host == "*" {
+		host = ""
+	}
+	next := make(map[string]http.FileSystem, len(config))
+	for route, source := range config {
+		if source != nil {
+			next[route] = source
+		}
+	}
+	ws.staticsByHostLock.Lock()
+	if len(next) == 0 {
+		delete(ws.staticFSByHost, host)
+		delete(ws.staticFSExclusive, host)
+	} else {
+		ws.staticFSByHost[host] = next
+		ws.staticFSExclusive[host] = exclusive
+	}
+	ws.staticsByHostLock.Unlock()
 }
 
 // StaticByHost 为指定域名注册静态文件目录
@@ -81,13 +144,48 @@ func (ws *WebServer) getStaticFilePath(requestPath, host string) string {
 	ws.staticsByHostLock.RLock()
 	defer ws.staticsByHostLock.RUnlock()
 
-	// 优先匹配指定域名的配置
-	if filePath := ws.findMatchedPathSorted(ws.hostStatics[host], requestPath); filePath != "" {
-		return filePath
+	for _, candidate := range hostCandidates(host) {
+		if candidate == "*" {
+			candidate = ""
+		}
+		if filePath := ws.findMatchedPathSorted(ws.hostStatics[candidate], requestPath); filePath != "" {
+			return filePath
+		}
 	}
+	return ""
+}
 
-	// 匹配全局配置
-	return ws.findMatchedPathSorted(ws.hostStatics[""], requestPath)
+func (ws *WebServer) getStaticFSMatches(requestPath, host string) []staticFSMatch {
+	requestPath, _ = url.PathUnescape(requestPath)
+	ws.staticsByHostLock.RLock()
+	defer ws.staticsByHostLock.RUnlock()
+	matches := make([]staticFSMatch, 0)
+	for _, candidate := range hostCandidates(host) {
+		if candidate == "*" {
+			candidate = ""
+		}
+		config, exists := ws.staticFSByHost[candidate]
+		if !exists {
+			continue
+		}
+		routes := make([]string, 0, len(config))
+		for route := range config {
+			routes = append(routes, route)
+		}
+		sort.Slice(routes, func(i, j int) bool { return len(routes[i]) > len(routes[j]) })
+		for _, route := range routes {
+			if !strings.HasPrefix(requestPath, route) {
+				continue
+			}
+			name := strings.TrimPrefix(requestPath, route)
+			name = strings.TrimPrefix(pathpkg.Clean("/"+name), "/")
+			matches = append(matches, staticFSMatch{fileSystem: config[route], name: name})
+		}
+		if ws.staticFSExclusive[candidate] {
+			break
+		}
+	}
+	return matches
 }
 
 func (ws *WebServer) findMatchedPathSorted(config []*staticType, requestPath string) string {
@@ -100,6 +198,11 @@ func (ws *WebServer) findMatchedPathSorted(config []*staticType, requestPath str
 }
 
 func (ws *WebServer) processStatic(requestPath string, request *Request, response *Response, logger *log.Logger) bool {
+	for _, match := range ws.getStaticFSMatches(requestPath, request.Host) {
+		if ws.processStaticFS(match, request, response) {
+			return true
+		}
+	}
 	filePath := ws.getStaticFilePath(requestPath, request.Host)
 	if filePath == "" {
 		return false
@@ -159,6 +262,93 @@ func (ws *WebServer) processStatic(requestPath string, request *Request, respons
 		return false
 	}
 
-	_, _ = response.WriteFiltered(data)
+	if ws.webDevEnabled {
+		_, _ = response.WriteFiltered(data)
+	} else {
+		_, _ = response.Write(data)
+	}
 	return true
 }
+
+func (ws *WebServer) processStaticFS(match staticFSMatch, request *Request, response *Response) bool {
+	name := match.name
+	opened, err := match.fileSystem.Open(name)
+	if err != nil {
+		return false
+	}
+	defer func() { _ = opened.Close() }()
+	info, err := opened.Stat()
+	if err != nil {
+		return false
+	}
+	if info.IsDir() {
+		_ = opened.Close()
+		indexFiles := ws.Config.IndexFiles
+		if len(indexFiles) == 0 {
+			indexFiles = []string{"index.html", "index.htm"}
+		}
+		found := false
+		for _, indexFile := range indexFiles {
+			candidate := pathpkg.Join(name, indexFile)
+			opened, err = match.fileSystem.Open(candidate)
+			if err != nil {
+				continue
+			}
+			info, err = opened.Stat()
+			if err == nil && !info.IsDir() {
+				name = candidate
+				found = true
+				break
+			}
+			_ = opened.Close()
+		}
+		if !found {
+			return false
+		}
+	}
+	if info.IsDir() {
+		return false
+	}
+	seeker, ok := opened.(interface {
+		Read([]byte) (int, error)
+		Seek(int64, int) (int64, error)
+	})
+	if !ok {
+		return false
+	}
+	response.Header().Del(ws.usedDeviceIdKey)
+	response.Header().Del(ws.usedSessionIdKey)
+	contentType := mime.TypeByExtension(filepath.Ext(name))
+	if contentType != "" {
+		response.Header().Set("Content-Type", contentType)
+	}
+	if ws.webDevEnabled && strings.HasPrefix(contentType, "text/html") {
+		data, readErr := io.ReadAll(seeker)
+		if readErr != nil {
+			return false
+		}
+		response.Header().Set("Last-Modified", info.ModTime().UTC().Format(http.TimeFormat))
+		_, _ = response.WriteFiltered(data)
+		return true
+	}
+	http.ServeContent(&staticResponseWriter{response: response}, request.Request, info.Name(), info.ModTime(), seeker)
+	return true
+}
+
+type staticResponseWriter struct {
+	response *Response
+}
+
+func (w *staticResponseWriter) Header() http.Header {
+	return w.response.Header().H
+}
+
+func (w *staticResponseWriter) WriteHeader(statusCode int) {
+	w.response.WriteHeader(statusCode)
+}
+
+func (w *staticResponseWriter) Write(data []byte) (int, error) {
+	return w.response.Write(data)
+}
+
+var _ http.ResponseWriter = (*staticResponseWriter)(nil)

@@ -81,3 +81,25 @@ func TestServeHTTP_Panic(t *testing.T) {
 		t.Errorf("Expected status 500, got %d", w.Code)
 	}
 }
+
+func TestFallbackRunsOnlyAfterRegisteredRoutesMiss(t *testing.T) {
+	ws := NewWebServer()
+	ws.Host("*").GET("/registered", func() string { return "registered" })
+	ws.SetFallback(func(request *Request) string { return "fallback:" + request.URL.Path })
+	handler := &RouteHandler{ws: ws}
+
+	for _, test := range []struct {
+		path string
+		want string
+	}{
+		{"/registered", "registered"},
+		{"/missing", "fallback:/missing"},
+	} {
+		request := httptest.NewRequest(http.MethodGet, test.path, nil)
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusOK || response.Body.String() != test.want {
+			t.Fatalf("%s: got %d %q, want 200 %q", test.path, response.Code, response.Body.String(), test.want)
+		}
+	}
+}

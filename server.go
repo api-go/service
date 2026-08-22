@@ -46,6 +46,7 @@ type WebServer struct {
 	regexWebServices map[string][]*webServiceType
 	webServicesLock  sync.RWMutex
 	webServicesList  []*webServiceType
+	fallbackService  *webServiceType
 
 	websocketServices     map[string]map[string]*websocketServiceType
 	websocketServicesLock sync.RWMutex
@@ -73,6 +74,8 @@ type WebServer struct {
 	dynamicStatics    map[string]map[string]*string
 	hostStatics       map[string][]*staticType
 	staticsByHostLock sync.RWMutex
+	staticFSByHost    map[string]map[string]http.FileSystem
+	staticFSExclusive map[string]bool
 
 	// 过滤器与拦截器
 	inFilters       []func(*map[string]any, *Request, *Response, *log.Logger) any
@@ -141,6 +144,8 @@ func NewWebServer() *WebServer {
 		fileStatics:           make(map[string]map[string]*string),
 		dynamicStatics:        make(map[string]map[string]*string),
 		hostStatics:           make(map[string][]*staticType),
+		staticFSByHost:        make(map[string]map[string]http.FileSystem),
+		staticFSExclusive:     make(map[string]bool),
 		webAuthCheckers:       make(map[int]func(int, *log.Logger, *string, map[string]any, *Request, *Response, *WebServiceOptions) (pass bool, object any)),
 		injectObjects:         make(map[reflect.Type]any),
 		injectFunctions:       make(map[reflect.Type]func() any),

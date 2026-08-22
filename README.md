@@ -75,12 +75,16 @@ func main() {
 
 ### 4. 增强插件
 - **静态文件**: `service.Static("/ui", "./static_dir")` 或 `service.Host("example.com").Static("/ui", "./static_dir")`
+- **自定义静态源**: `service.Host("example.com").StaticFS("/", source)` 或 `service.ReplaceStaticFS(host, mounts)`，适用于知识库、对象存储和虚拟文件系统。需要虚拟主机隔离时使用 `service.ReplaceStaticFSExclusive(host, mounts)`；选中该 Host 后，文件未命中不会继续进入后续 Host 的自定义静态源。
+- **未命中处理**: `service.SetFallback(handler)` 在静态文件和已注册路由都未命中后执行。
 - **URL 重写**: `service.Rewrite("/old", "/new")`
 - **反向代理**: `service.Proxy(0, "/api", "other_app", "/api")`
 - **文档生成**: `service.MakeDocument()` 返回全量接口描述
 - **依赖注入**: `service.GetInjectT[T]()` 快速获取已注入的对象或组件
 
 低代码需要转发二进制或 SSE 流时，使用 `response.WriteBytes(chunk)` 原样写入动态运行时提供的字节数组；文本输出继续使用 `response.WriteString(text)`。`Write`、`WriteBytes` 和 `WriteString` 都直接写入响应并保持流式行为，不会被全局输出过滤器强制缓冲；确实需要过滤器处理的内容应显式使用 `response.WriteFiltered(bytes)`。
+
+自定义静态源必须返回可 `Seek` 的 `http.File`。生产模式下静态内容直接流式输出并绕过 output filter；`EnableWebDev` 仅会为 HTML 显式缓冲内容，用于注入开发热刷新脚本。
 
 ## 配置指南 (ServiceConfig)
 
