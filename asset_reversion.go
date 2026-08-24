@@ -67,8 +67,8 @@ func collectAssetReferences(content string) []string {
 	return refs
 }
 
-var assetAttrPattern = regexp.MustCompile(`(?is)(\b(?:src|href|poster|file)\s*=\s*)(?:"([^"]+)"|'([^']+)'|([^\s>]+))`)
-var srcsetAttrPattern = regexp.MustCompile(`(?is)(\bsrcset\s*=\s*["'])([^"']+)(["'])`)
+var assetAttrPattern = regexp.MustCompile(`(?is)(<[a-z][^>]*?\s(?:src|href|poster|file)\s*=\s*)(?:"([^"]+)"|'([^']+)'|([^\s>]+))`)
+var srcsetAttrPattern = regexp.MustCompile(`(?is)(<[a-z][^>]*?\ssrcset\s*=\s*["'])([^"']+)(["'])`)
 var cssURLPattern = regexp.MustCompile(`(?is)(url\(\s*["']?)([^"')\s]+)(["']?\s*\))`)
 
 // AssetVersion appends the source asset's second-resolution modification time.
@@ -123,10 +123,12 @@ func RewriteAssetReferences(host, sourcePath string, content []byte, resolve Ass
 		}
 		return parts[1] + strings.Join(candidates, ", ") + parts[3]
 	})
-	result = cssURLPattern.ReplaceAllStringFunc(result, func(match string) string {
-		parts := cssURLPattern.FindStringSubmatch(match)
-		return parts[1] + AssetVersion(host, sourcePath, parts[2], resolve) + parts[3]
-	})
+	if strings.HasSuffix(strings.ToLower(sourcePath), ".css") {
+		result = cssURLPattern.ReplaceAllStringFunc(result, func(match string) string {
+			parts := cssURLPattern.FindStringSubmatch(match)
+			return parts[1] + AssetVersion(host, sourcePath, parts[2], resolve) + parts[3]
+		})
+	}
 	return []byte(result)
 }
 

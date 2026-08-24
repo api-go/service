@@ -46,6 +46,14 @@ func TestRewriteCSSAndMissingReferences(t *testing.T) {
 	}
 }
 
+func TestRewriteDoesNotTouchJavaScriptProperties(t *testing.T) {
+	resolve := func(_, _, _ string) (time.Time, bool) { return time.Unix(10, 0), true }
+	input := []byte(`const value = new URL(script.src); const href = element.href;`)
+	if got := string(service.RewriteAssetReferences("example.com", "/ui/app.js", input, resolve)); got != string(input) {
+		t.Fatalf("JavaScript was modified: %s", got)
+	}
+}
+
 func TestRewriteSrcset(t *testing.T) {
 	resolve := func(_, _, asset string) (time.Time, bool) {
 		if strings.HasPrefix(asset, "/img/") {

@@ -289,7 +289,7 @@ func (ws *WebServer) processStatic(requestPath string, request *Request, respons
 				}
 			}
 		}
-		if ws.Config.AutoReversion && strings.HasPrefix(contentType, "text/html") {
+		if ws.Config.AutoReversion && (strings.HasPrefix(contentType, "text/html") || strings.HasPrefix(contentType, "text/css")) {
 			data = RewriteAssetReferencesCached(request.Host, request.URL.Path, time.Unix(info.ModTime, 0), data, func(_ string, sourcePath, assetPath string) (time.Time, bool) {
 				resolvedURL := resolveAssetPath(sourcePath, assetPath)
 				physicalPath := ws.getStaticFilePath(resolvedURL, request.Host)
@@ -376,7 +376,7 @@ func (ws *WebServer) processStaticFS(match staticFSMatch, request *Request, resp
 				}
 			}
 		}
-		if ws.Config.AutoReversion && strings.HasPrefix(contentType, "text/html") {
+		if ws.Config.AutoReversion && (strings.HasPrefix(contentType, "text/html") || strings.HasPrefix(contentType, "text/css")) {
 			data = RewriteAssetReferencesCached(request.Host, "/"+strings.TrimPrefix(name, "/"), info.ModTime(), data, func(_ string, sourcePath, assetPath string) (time.Time, bool) {
 				asset, err := match.fileSystem.Open(strings.TrimPrefix(assetPath, "/"))
 				if err != nil {
