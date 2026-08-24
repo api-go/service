@@ -1,10 +1,13 @@
 # CHANGELOG - go/service
 
-## Unreleased
+## v1.5.28 (2026-08-25)
 - **多监听协议**: `Listen` 中以 `|` 分隔的地址全部启动并纳入统一停止与状态管理，不再只使用第一项。
 - **零配置入口**: 非服务发现应用默认尝试 80/443，端口无权限或被占用时整组降级到 8080/8443；显式 App + Registry 继续使用随机端口 H2C。
 - **HTTPS**: 支持 SNI 域名证书、文件或内联 PEM、AES-GCM 密文兼容加载，以及纯 Go 生成并加密持久化的 99 年自签名兜底证书。
 - **Host HTTPS 策略**: 新增 `ReplaceForceHTTPS`，按 Host 动态启用 308 跳转并使用实际 HTTPS listener 端口。
+- **JavaScript 资源**: 自动压缩跳过 `.js` 与 `.mjs`，避免压缩器改变现代模块语义；HTML、CSS 等资源继续按原策略处理。
+- **缓存清理**: 忽略本地生成的 `data/wwwcache/index.html.min`。
+- **依赖对齐**: 升级 `log`、`redis`、`shell` 与 `watch` 到当前稳定补丁版本。
 
 ## v1.5.24 (2026-08-22)
 - **动态静态源**: 新增 `StaticFS` 与 `ReplaceStaticFS`，可以按 Host 原子替换自定义 `http.FileSystem`；增加 `ReplaceStaticFSExclusive`，支持选中虚拟主机后隔离后续 Host 静态源。

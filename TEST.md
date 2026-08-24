@@ -1,9 +1,10 @@
 # Service Module Test Report
 
-## Unreleased
+## v1.5.28 (2026-08-25)
 - `TestParseListenConfigs` 验证 `|` 分隔的 HTTP、HTTPS、H2C 配置全部解析。
 - `TestMultiListenerWithAutoTLS` 验证 HTTP/HTTPS 同时监听、真实 TLS 握手、完整状态地址及 99 年自签名证书持久化。
 - 同一测试验证 Host 级 HTTPS 308 跳转使用当前实际 TLS 端口。
+- `TestMinifyAsset` 验证 HTML 保持压缩，并验证 `.js` 与 `.mjs` 原样返回。
 - `go test -race ./...` 通过。
 
 ## v1.5.24 (2026-08-22)

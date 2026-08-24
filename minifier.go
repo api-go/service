@@ -28,6 +28,9 @@ var assetMinifier = func() *minify.M {
 
 func minifyAsset(name string, input []byte) ([]byte, error) {
 	ext := strings.ToLower(filepath.Ext(name))
+	if ext == ".js" || ext == ".mjs" {
+		return input, nil
+	}
 	if strings.Contains(strings.TrimSuffix(filepath.Base(name), ext), ".min") {
 		return input, nil
 	}

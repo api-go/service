@@ -86,6 +86,8 @@ func main() {
 
 自定义静态源必须返回可 `Seek` 的 `http.File`。生产模式下静态内容直接流式输出并绕过 output filter；`EnableWebDev` 仅会为 HTML 显式缓冲内容，用于注入开发热刷新脚本。
 
+启用 `AutoMinify` 时，HTML、CSS 等文本资源会生成压缩缓存；`.js` 与 `.mjs` 保持原始字节，避免第三方压缩器改写现代 JavaScript 模块语义。
+
 ## 配置指南 (ServiceConfig)
 
 详细配置项可查阅 `config.go` 中的 `ServiceConfig` 结构。通过 `config.Load` 支持从 `env.yml` 或环境变量加载。

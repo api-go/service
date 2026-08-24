@@ -33,6 +33,13 @@ func TestMinifyAsset(t *testing.T) {
 	if err != nil || len(got) >= len("<html> <body> hello </body> </html>") {
 		t.Fatalf("unexpected minify: %q, %v", got, err)
 	}
+	for _, name := range []string{"app.js", "module.mjs"} {
+		input := []byte("const value = 1 + 2;\n")
+		got, err = minifyAsset(name, input)
+		if err != nil || string(got) != string(input) {
+			t.Fatalf("JavaScript must remain unchanged for %s: %q, %v", name, got, err)
+		}
+	}
 }
 
 func TestCleanupAssetCache(t *testing.T) {

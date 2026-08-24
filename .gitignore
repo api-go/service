@@ -6,3 +6,4 @@ env.json
 env.yml
 env.yaml
 /CODE-FULL.md
+data/wwwcache/index.html.min
