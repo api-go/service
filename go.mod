@@ -11,7 +11,7 @@ require (
 	apigo.cc/go/file v1.5.6
 	apigo.cc/go/http v1.5.4
 	apigo.cc/go/id v1.5.7
-	apigo.cc/go/jsmod v1.5.3
+	apigo.cc/go/jsmod v1.5.4
 	apigo.cc/go/log v1.5.11
 	apigo.cc/go/redis v1.5.12
 	apigo.cc/go/safe v1.5.3
