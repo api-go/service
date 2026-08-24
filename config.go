@@ -4,6 +4,8 @@ package service
 type CertSet struct {
 	CertFile string
 	KeyFile  string
+	Cert     string
+	Key      string
 }
 
 // CallConfig 下游服务调用配置
@@ -20,8 +22,9 @@ type ServiceConfig struct {
 	Register                      string                // 发现服务注册中心地址。支持 Redis URL 或 Redis 配置名称。
 	Weight                        int                   // 当前节点在发现服务中的权重 (默认 100)
 	Calls                         map[string]CallConfig // 依赖的下游服务调用配置
-	Listen                        string                // 监听端口（|隔开多个监听）（,隔开多个选项），例如 80,http|443|443:h2|127.0.0.1:8080,h2c
+	Listen                        string                // 监听端口（|隔开多个监听，,隔开选项），例如 :80,http|:443,https|127.0.0.1:8080,h2c
 	SSL                           map[string]*CertSet   // SSL 证书配置，key 为域名
+	AutoCertDir                   string                // 未配置证书时自签名证书的持久化目录（默认 data/ssl/_auto）
 	NoLogGets                     bool                  // 不记录 GET 请求的日志
 	NoLogInput                    bool                  // 不记录请求输入
 	NoLogOutput                   bool                  // 不记录响应输出
@@ -39,6 +42,9 @@ type ServiceConfig struct {
 	Compress                      bool                  // 是否启用压缩
 	CompressMinSize               int                   // 启用压缩的最小长度
 	CompressMaxSize               int                   // 启用压缩的最大长度
+	AutoReversion                 bool                  // 是否自动为文本资源引用追加版本号并启用文本资源处理
+	AutoMinify                    bool                  // 是否为文本资源生成磁盘压缩缓存
+	AutoReversionCachePath        string                // 文本资源缓存目录（默认 data/wwwcache）
 	CheckDomain                   string                // 心跳检测时使用域名
 	AccessTokens                  map[string]*int       // 指定 Access-Token 验证及其对应的 auth-level
 	RedirectTimeout               int                   // Proxy 和 Discover 发起请求时的超时时间 (ms)

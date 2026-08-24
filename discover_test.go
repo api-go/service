@@ -23,7 +23,7 @@ func TestGetServerIp(t *testing.T) {
 
 func TestSmartStartup(t *testing.T) {
 	// Reset config
-	Config.Listen = ""
+	Config.Listen = ":0,h2c"
 	Config.App = "smart-test"
 
 	as := AsyncStart()

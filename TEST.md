@@ -1,5 +1,11 @@
 # Service Module Test Report
 
+## Unreleased
+- `TestParseListenConfigs` 验证 `|` 分隔的 HTTP、HTTPS、H2C 配置全部解析。
+- `TestMultiListenerWithAutoTLS` 验证 HTTP/HTTPS 同时监听、真实 TLS 握手、完整状态地址及 99 年自签名证书持久化。
+- 同一测试验证 Host 级 HTTPS 308 跳转使用当前实际 TLS 端口。
+- `go test -race ./...` 通过。
+
 ## v1.5.24 (2026-08-22)
 - `TestStaticFSHostCandidatesAndRange` 验证自定义静态源的四级 Host 优先级与 Range 206 响应。
 - `TestStaticFSExclusiveStopsFileFallback` 验证隔离 Host 文件未命中时返回 404，未匹配 Host 仍使用全局默认静态源。

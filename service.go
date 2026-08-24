@@ -595,12 +595,13 @@ func (ws *WebServer) initWebDev(logger *log.Logger) {
 				}
 			}
 
-			if isHtml {
+			if isHtml && request.URL.Query().Get("dev") == "1" {
 				if strings.Contains(outStr, "let _watchWS = null") {
 					return nil, false
 				}
 				// 注入自动刷新的代码
 				injectCode := `<script>
+	if (new URLSearchParams(location.search).get('dev') === '1') {
 	let _watchWS = null
 	let _watchWSConnection = false
 	let _watchWSIsFirst = true
@@ -634,6 +635,7 @@ func (ws *WebServer) initWebDev(logger *log.Logger) {
 		}
 	}, 1000)
     connect()
+	}
 </script>`
 				// 仅替换最后一个 </html> 避免多个标签时的重复注入
 				lastIndex := strings.LastIndex(outStr, "</html>")

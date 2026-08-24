@@ -8,6 +8,8 @@ import (
 	"apigo.cc/go/starter"
 	"apigo.cc/go/watch"
 	"context"
+	"crypto/tls"
+	"errors"
 	"fmt"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
@@ -31,7 +33,11 @@ type WebServer struct {
 	Config          ServiceConfig
 	server          *http.Server
 	listener        net.Listener
+	servers         []*http.Server
+	listeners       []net.Listener
 	Addr            string
+	Addrs           []string
+	listenConfigs   []listenConfig
 	useDiscover     bool
 	discoverStarted bool
 	logger          *log.Logger
@@ -65,6 +71,7 @@ type WebServer struct {
 	dynamicRewrites map[string][]*rewriteType
 
 	hostPoliciesLock sync.RWMutex
+	forceHTTPSHosts  map[string]bool
 
 	// 静态文件服务
 	statics           map[string]*string
@@ -104,6 +111,12 @@ type WebServer struct {
 	// Web 开发模式配置
 	webDevEnabled bool
 	webDevConfig  watch.Config
+	assetResolver AssetVersionResolver
+}
+
+type listenConfig struct {
+	addr     string
+	protocol string
 }
 
 // DefaultServer 全局单例服务实例
@@ -121,6 +134,7 @@ func init() {
 	Config.LogOutputArrayNum = 3
 	Config.LogOutputFieldSize = 20
 	Config.LogOutputMaxSize = 200
+	Config.AutoReversionCachePath = "data/wwwcache"
 }
 
 func NewWebServer() *WebServer {
@@ -326,6 +340,15 @@ func (ws *WebServer) Start(ctx context.Context, logger *log.Logger) error {
 		logger = log.DefaultLogger
 	}
 	ws.logger = logger
+	if ws.Config.AutoMinify {
+		cachePath := ws.Config.AutoReversionCachePath
+		if cachePath == "" {
+			cachePath = "data/wwwcache"
+		}
+		if err := CleanupAssetCache(cachePath, 30*24*time.Hour, time.Now()); err != nil {
+			logger.Warning("failed to cleanup auto minify cache", "path", cachePath, "error", err.Error())
+		}
+	}
 
 	// 初始加载配置
 	if err := config.Load(&ws.Config, "service"); err != nil {
@@ -333,43 +356,34 @@ func (ws *WebServer) Start(ctx context.Context, logger *log.Logger) error {
 	}
 	ws.ApplyConfig()
 
-	listenStr := ws.Config.Listen
+	listenStr := strings.TrimSpace(ws.Config.Listen)
+	defaultListen := listenStr == ""
 	ws.useDiscover = false
-
-	if listenStr == "" {
-		listenStr = ":0,h2c"
-		ws.useDiscover = true
-	}
-
-	part := strings.Split(listenStr, "|")[0]
-	addr, opts, _ := strings.Cut(part, ",")
-
-	protocol := ""
-	for _, opt := range strings.Split(opts, ",") {
-		opt = strings.ToLower(strings.TrimSpace(opt))
-		if opt == "h2c" || opt == "h2" || opt == "http" || opt == "https" {
-			protocol = opt
-		}
-	}
-
-	if protocol == "" {
-		protocol = "http"
-	}
-
-	if !strings.Contains(addr, ":") {
-		addr = ":" + addr
-	}
 
 	if ws.webDevEnabled {
 		ws.initWebDev(logger)
 	}
 
-	appName := ws.Config.App
+	explicitApp := strings.TrimSpace(ws.Config.App)
+	registry := strings.TrimSpace(ws.Config.Register)
+	if registry == "" {
+		registry = strings.TrimSpace(os.Getenv("DISCOVER_REGISTRY"))
+	}
+	if defaultListen {
+		if explicitApp != "" && registry != "" {
+			listenStr = ":0,h2c"
+			ws.useDiscover = true
+		} else {
+			listenStr = ":80,http|:443,https"
+		}
+	}
+
+	appName := explicitApp
 	if appName == "" {
 		appName = GetDefaultName()
 		ws.Config.App = appName
 	}
-	if appName != "" || ws.Config.Register != "" {
+	if registry != "" {
 		ws.useDiscover = true
 	}
 
@@ -382,32 +396,26 @@ func (ws *WebServer) Start(ctx context.Context, logger *log.Logger) error {
 		}
 	}
 
-	listener, err := net.Listen("tcp", addr)
+	configs, err := parseListenConfigs(listenStr)
 	if err != nil {
-		return fmt.Errorf("failed to listen on %s: %w", addr, err)
+		return err
 	}
-
-	ws.listener = listener
-	ws.Addr = listener.Addr().String()
+	if err = ws.openListeners(configs); err != nil && defaultListen && !ws.useDiscover {
+		logger.Warning("default ports unavailable, falling back", "from", listenStr, "to", ":8080,http|:8443,https", "error", err.Error())
+		configs, _ = parseListenConfigs(":8080,http|:8443,https")
+		err = ws.openListeners(configs)
+	}
+	if err != nil {
+		return err
+	}
+	ws.listener = ws.listeners[0]
+	ws.server = ws.servers[0]
+	ws.Addr = ws.Addrs[0]
 	ws.serverAddr = ws.Addr
-
-	if addr == ":0" || strings.HasSuffix(addr, ":0") {
-		ws.useDiscover = true
-	}
-
-	h2s := &http2.Server{}
-	var handler http.Handler = &RouteHandler{ws: ws}
-	if protocol == "h2c" {
-		handler = h2c.NewHandler(handler, h2s)
-	}
-
-	ws.server = &http.Server{
-		Handler:           handler,
-		ReadTimeout:       time.Duration(ws.Config.ReadTimeout) * time.Millisecond,
-		ReadHeaderTimeout: time.Duration(ws.Config.ReadHeaderTimeout) * time.Millisecond,
-		WriteTimeout:      time.Duration(ws.Config.WriteTimeout) * time.Millisecond,
-		IdleTimeout:       time.Duration(ws.Config.IdleTimeout) * time.Millisecond,
-		MaxHeaderBytes:    ws.Config.MaxHeaderBytes,
+	for _, config := range configs {
+		if config.addr == ":0" || strings.HasSuffix(config.addr, ":0") {
+			ws.useDiscover = true
+		}
 	}
 
 	if ws.useDiscover {
@@ -425,11 +433,6 @@ func (ws *WebServer) Start(ctx context.Context, logger *log.Logger) error {
 			calls[name] = makeDiscoverCallConfig(call, ws.Config.RedirectTimeout)
 		}
 
-		registry := ws.Config.Register
-		if registry == "" {
-			registry = os.Getenv("DISCOVER_REGISTRY")
-		}
-
 		if registry != "" {
 			discover.Init()
 			discover.Config.Registry = registry
@@ -445,16 +448,18 @@ func (ws *WebServer) Start(ctx context.Context, logger *log.Logger) error {
 		}
 	}
 
-	errChan := make(chan error, 1)
-
-	go func() {
-		logger.Info("starting listener", "addr", ws.Addr, "proto", protocol)
-		ws.running = true
-		if err := ws.server.Serve(ws.listener); err != nil && err != http.ErrServerClosed {
-			errChan <- err
-		}
-		close(errChan)
-	}()
+	errChan := make(chan error, len(ws.servers))
+	ws.running = true
+	for index, server := range ws.servers {
+		listener := ws.listeners[index]
+		config := configs[index]
+		logger.Info("starting listener", "addr", ws.Addrs[index], "proto", config.protocol)
+		go func() {
+			if serveErr := server.Serve(listener); serveErr != nil && serveErr != http.ErrServerClosed {
+				errChan <- serveErr
+			}
+		}()
+	}
 
 	select {
 	case err := <-errChan:
@@ -465,6 +470,77 @@ func (ws *WebServer) Start(ctx context.Context, logger *log.Logger) error {
 	}
 
 	return nil
+}
+
+func parseListenConfigs(value string) ([]listenConfig, error) {
+	parts := strings.Split(value, "|")
+	configs := make([]listenConfig, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		addr, options, _ := strings.Cut(part, ",")
+		addr = strings.TrimSpace(addr)
+		if !strings.Contains(addr, ":") {
+			addr = ":" + addr
+		}
+		protocol := "http"
+		for _, option := range strings.Split(options, ",") {
+			switch option = strings.ToLower(strings.TrimSpace(option)); option {
+			case "http", "https", "h2", "h2c":
+				protocol = option
+			}
+		}
+		configs = append(configs, listenConfig{addr: addr, protocol: protocol})
+	}
+	if len(configs) == 0 {
+		return nil, fmt.Errorf("service listen config is empty")
+	}
+	return configs, nil
+}
+
+func (ws *WebServer) openListeners(configs []listenConfig) error {
+	ws.closeListeners()
+	var tlsConf *tls.Config
+	for _, config := range configs {
+		listener, err := net.Listen("tcp", config.addr)
+		if err != nil {
+			ws.closeListeners()
+			return fmt.Errorf("failed to listen on %s: %w", config.addr, err)
+		}
+		if config.protocol == "https" || config.protocol == "h2" {
+			if tlsConf == nil {
+				tlsConf, err = ws.tlsConfig()
+				if err != nil {
+					_ = listener.Close()
+					ws.closeListeners()
+					return err
+				}
+			}
+			listener = tls.NewListener(listener, tlsConf)
+		}
+		var handler http.Handler = &RouteHandler{ws: ws}
+		if config.protocol == "h2c" {
+			handler = h2c.NewHandler(handler, &http2.Server{})
+		}
+		server := &http.Server{Handler: handler, ReadTimeout: time.Duration(ws.Config.ReadTimeout) * time.Millisecond, ReadHeaderTimeout: time.Duration(ws.Config.ReadHeaderTimeout) * time.Millisecond, WriteTimeout: time.Duration(ws.Config.WriteTimeout) * time.Millisecond, IdleTimeout: time.Duration(ws.Config.IdleTimeout) * time.Millisecond, MaxHeaderBytes: ws.Config.MaxHeaderBytes}
+		ws.listeners = append(ws.listeners, listener)
+		ws.servers = append(ws.servers, server)
+		ws.Addrs = append(ws.Addrs, listener.Addr().String())
+	}
+	ws.listenConfigs = append([]listenConfig(nil), configs...)
+	return nil
+}
+
+func (ws *WebServer) closeListeners() {
+	for _, listener := range ws.listeners {
+		_ = listener.Close()
+	}
+	ws.listeners = nil
+	ws.servers = nil
+	ws.Addrs = nil
+	ws.listenConfigs = nil
 }
 
 // Stop 停止服务，实现 starter.Service 接口
@@ -483,20 +559,22 @@ func (ws *WebServer) Stop(ctx context.Context) error {
 		discover.Stop()
 		ws.discoverStarted = false
 	}
-	if ws.server != nil {
-		if err := ws.server.Shutdown(ctx); err != nil {
-			return err
+	var shutdownErrors []error
+	for _, server := range ws.servers {
+		if err := server.Shutdown(ctx); err != nil {
+			shutdownErrors = append(shutdownErrors, err)
 		}
 	}
-	return nil
+	ws.closeListeners()
+	return errors.Join(shutdownErrors...)
 }
 
 // Status 检查服务健康状态，实现 starter.Service 接口
 func (ws *WebServer) Status() (string, error) {
-	if ws.server == nil || !ws.running {
+	if len(ws.servers) == 0 || !ws.running {
 		return "", fmt.Errorf("server is not running")
 	}
-	return ws.Addr, nil
+	return strings.Join(ws.Addrs, "|"), nil
 }
 
 // Reload 实现配置重新加载，实现 starter.Reloader 接口

@@ -14,6 +14,23 @@ import (
 	"time"
 )
 
+func isAssetTextType(contentType, name string) bool {
+	if strings.HasPrefix(contentType, "text/html") || strings.HasPrefix(contentType, "text/css") {
+		return true
+	}
+	ext := strings.ToLower(pathpkg.Ext(name))
+	return ext == ".js" || ext == ".mjs" || ext == ".json" || ext == ".svg" || ext == ".xml" || ext == ".html" || ext == ".htm" || ext == ".css"
+}
+
+func (ws *WebServer) assetCachePath(name string) string {
+	root := ws.Config.AutoReversionCachePath
+	if root == "" {
+		root = "data/wwwcache"
+	}
+	name = strings.TrimPrefix(pathpkg.Clean("/"+name), "/")
+	return filepath.Join(root, filepath.FromSlash(name+".min"))
+}
+
 type staticFSMatch struct {
 	fileSystem http.FileSystem
 	name       string
@@ -262,7 +279,30 @@ func (ws *WebServer) processStatic(requestPath string, request *Request, respons
 		return false
 	}
 
-	if ws.webDevEnabled {
+	if ws.webDevEnabled || ((ws.Config.AutoReversion || ws.Config.AutoMinify) && isAssetTextType(contentType, filePath)) {
+		if ws.Config.AutoMinify && isAssetTextType(contentType, filePath) {
+			modTime := time.Unix(info.ModTime, 0)
+			if cached, cacheErr := BuildAssetCache(filePath, ws.assetCachePath(request.URL.Path), modTime, data, func(input []byte) ([]byte, error) { return minifyAsset(filePath, input) }); len(cached) > 0 {
+				data = cached
+				if cacheErr != nil {
+					logger.Error("failed to minify asset", "path", filePath, "error", cacheErr.Error())
+				}
+			}
+		}
+		if ws.Config.AutoReversion && isAssetTextType(contentType, filePath) {
+			data = RewriteAssetReferencesCached(request.Host, request.URL.Path, time.Unix(info.ModTime, 0), data, func(_ string, sourcePath, assetPath string) (time.Time, bool) {
+				resolvedURL := resolveAssetPath(sourcePath, assetPath)
+				physicalPath := ws.getStaticFilePath(resolvedURL, request.Host)
+				if physicalPath == "" {
+					return time.Time{}, false
+				}
+				assetInfo := file.GetFileInfo(physicalPath)
+				if assetInfo == nil || assetInfo.IsDir {
+					return time.Time{}, false
+				}
+				return time.Unix(assetInfo.ModTime, 0), true
+			})
+		}
 		_, _ = response.WriteFiltered(data)
 	} else {
 		_, _ = response.Write(data)
@@ -322,12 +362,34 @@ func (ws *WebServer) processStaticFS(match staticFSMatch, request *Request, resp
 	if contentType != "" {
 		response.Header().Set("Content-Type", contentType)
 	}
-	if ws.webDevEnabled && strings.HasPrefix(contentType, "text/html") {
+	if (ws.webDevEnabled && strings.HasPrefix(contentType, "text/html")) || ((ws.Config.AutoReversion || ws.Config.AutoMinify) && isAssetTextType(contentType, name)) {
 		data, readErr := io.ReadAll(seeker)
 		if readErr != nil {
 			return false
 		}
 		response.Header().Set("Last-Modified", info.ModTime().UTC().Format(http.TimeFormat))
+		if ws.Config.AutoMinify && isAssetTextType(contentType, name) {
+			if cached, cacheErr := BuildAssetCache(name, ws.assetCachePath(name), info.ModTime(), data, func(input []byte) ([]byte, error) { return minifyAsset(name, input) }); len(cached) > 0 {
+				data = cached
+				if cacheErr != nil {
+					log.DefaultLogger.Error("failed to minify asset", "path", name, "error", cacheErr.Error())
+				}
+			}
+		}
+		if ws.Config.AutoReversion {
+			data = RewriteAssetReferencesCached(request.Host, "/"+strings.TrimPrefix(name, "/"), info.ModTime(), data, func(_ string, sourcePath, assetPath string) (time.Time, bool) {
+				asset, err := match.fileSystem.Open(strings.TrimPrefix(assetPath, "/"))
+				if err != nil {
+					return time.Time{}, false
+				}
+				defer asset.Close()
+				info, err := asset.Stat()
+				if err != nil || info.IsDir() {
+					return time.Time{}, false
+				}
+				return info.ModTime(), true
+			})
+		}
 		_, _ = response.WriteFiltered(data)
 		return true
 	}

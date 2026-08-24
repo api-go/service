@@ -94,13 +94,34 @@ func main() {
 ```yaml
 service:
   App: "user-service"         # 应用名称 (缺省自动探测)
-  Listen: ":8080,http|:443"   # 监听端口, 多监听用 | 隔开, 选项用 , 隔开 (http/h2/h2c)
+  Listen: ":8080,http|:8443,https" # 多监听用 | 隔开，协议支持 http/https/h2/h2c
   Register: "127.0.0.1:6379"  # 发现中心地址 (Redis URL 或配置名)
   Weight: 100                 # 服务发现权重
   ReadTimeout: 30000          # 读取请求超时 (ms)
   WriteTimeout: 30000         # 写入响应超时 (ms)
   MaxHeaderBytes: 1048576     # 最大头部字节数 (1MB)
   StopTimeout: 5000           # 优雅停机等待时间 (ms)
+```
+
+`Listen` 为空时，显式配置 `App` 和 `Register` 的服务使用随机端口 H2C；其他应用优先监听 `80,http|443,https`，端口不可用时整组降级到 `8080,http|8443,https`。HTTPS 未配置证书时会在 `data/ssl/_auto` 生成并复用 99 年有效的自签名证书。
+
+证书支持加密或明文的内联内容与文件。加载时会先尝试 URLBase64 + AES-GCM 解密，失败后按原始 PEM 解析：
+
+```yaml
+service:
+  SSL:
+    "example.com":
+      CertFile: "data/ssl/example.com/cert.pem"
+      KeyFile: "data/ssl/example.com/key.pem"
+    "*.internal.example.com":
+      Cert: "<encrypted-or-plain-pem>"
+      Key: "<encrypted-or-plain-pem>"
+```
+
+应用可按 Host 动态控制 HTTP 到 HTTPS 的 308 重定向，目标端口自动取当前实际 HTTPS listener（包括默认降级后的 8443）：
+
+```go
+service.ReplaceForceHTTPS("example.com", true)
 ```
 
 ### 2. 下游调用配置 (Calls)

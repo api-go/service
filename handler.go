@@ -27,6 +27,11 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if ws == nil {
 		ws = DefaultServer
 	}
+	if r.TLS == nil && ws.shouldForceHTTPS(r.Host) {
+		target := "https://" + ws.httpsRedirectHost(r.Host) + r.URL.RequestURI()
+		http.Redirect(w, r, target, http.StatusPermanentRedirect)
+		return
+	}
 	atomic.AddInt64(&rh.webRequestingNum, 1)
 	defer atomic.AddInt64(&rh.webRequestingNum, -1)
 
@@ -243,6 +248,62 @@ filter:
 			outputResult(response, result)
 		}
 	}
+}
+
+// ReplaceForceHTTPS atomically sets the HTTPS redirect policy for a Host.
+func ReplaceForceHTTPS(host string, enabled bool) {
+	DefaultServer.ReplaceForceHTTPS(host, enabled)
+}
+
+func (ws *WebServer) ReplaceForceHTTPS(host string, enabled bool) {
+	host = strings.ToLower(strings.TrimSpace(host))
+	if host == "" {
+		host = "*"
+	}
+	ws.hostPoliciesLock.Lock()
+	if ws.forceHTTPSHosts == nil {
+		ws.forceHTTPSHosts = map[string]bool{}
+	}
+	if enabled {
+		ws.forceHTTPSHosts[host] = true
+	} else {
+		delete(ws.forceHTTPSHosts, host)
+	}
+	ws.hostPoliciesLock.Unlock()
+}
+
+func (ws *WebServer) shouldForceHTTPS(host string) bool {
+	ws.hostPoliciesLock.RLock()
+	defer ws.hostPoliciesLock.RUnlock()
+	for _, candidate := range hostCandidates(host) {
+		if ws.forceHTTPSHosts[candidate] {
+			return true
+		}
+	}
+	return false
+}
+
+func (ws *WebServer) httpsRedirectHost(host string) string {
+	httpsPort := "443"
+	for index, config := range ws.listenConfigs {
+		if config.protocol != "https" && config.protocol != "h2" {
+			continue
+		}
+		if index < len(ws.Addrs) {
+			if _, port, err := net.SplitHostPort(ws.Addrs[index]); err == nil {
+				httpsPort = port
+			}
+		}
+		break
+	}
+	hostname := host
+	if parsedHost, _, err := net.SplitHostPort(host); err == nil {
+		hostname = parsedHost
+	}
+	if httpsPort == "443" {
+		return hostname
+	}
+	return net.JoinHostPort(hostname, httpsPort)
 }
 
 func hostOnly(host string) string {

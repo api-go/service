@@ -74,7 +74,7 @@ func TestEnableWebDev(t *testing.T) {
 	handler := &RouteHandler{ws: DefaultServer}
 
 	// 3. 测试静态文件注入
-	req := httptest.NewRequest("GET", "/static/index.html", nil)
+	req := httptest.NewRequest("GET", "/static/index.html?dev=1", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -83,12 +83,20 @@ func TestEnableWebDev(t *testing.T) {
 		t.Errorf("Static HTML injection failed, code not found in body: %s", body)
 	}
 
+	// Development refresh is opt-in; normal HTML must not receive the watcher.
+	reqNoDev := httptest.NewRequest("GET", "/static/index.html", nil)
+	wNoDev := httptest.NewRecorder()
+	handler.ServeHTTP(wNoDev, reqNoDev)
+	if strings.Contains(wNoDev.Body.String(), "let _watchWS = null") {
+		t.Error("HTML without dev=1 should not contain the watcher")
+	}
+
 	// 4. 测试普通服务注入
 	Register("GET", "/test-dev", func() string {
 		return "<html><head></head><body>Hello</body></html>"
 	})
 
-	req2 := httptest.NewRequest("GET", "/test-dev", nil)
+	req2 := httptest.NewRequest("GET", "/test-dev?dev=1", nil)
 	w2 := httptest.NewRecorder()
 	handler.ServeHTTP(w2, req2)
 
@@ -110,4 +118,3 @@ func TestEnableWebDev(t *testing.T) {
 		t.Errorf("JSON should not be injected")
 	}
 }
-
