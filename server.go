@@ -112,6 +112,7 @@ type WebServer struct {
 	webDevEnabled bool
 	webDevConfig  watch.Config
 	assetResolver AssetVersionResolver
+	assetGraph    *assetDependencyGraph
 }
 
 type listenConfig struct {
@@ -163,6 +164,7 @@ func NewWebServer() *WebServer {
 		webAuthCheckers:       make(map[int]func(int, *log.Logger, *string, map[string]any, *Request, *Response, *WebServiceOptions) (pass bool, object any)),
 		injectObjects:         make(map[reflect.Type]any),
 		injectFunctions:       make(map[reflect.Type]func() any),
+		assetGraph:            newAssetDependencyGraph(),
 
 		usedSessionIdKey: "Session-ID",
 		usedDeviceIdKey:  "Device-ID",
@@ -355,6 +357,9 @@ func (ws *WebServer) Start(ctx context.Context, logger *log.Logger) error {
 		logger.Error("failed to load config during start", "error", err.Error())
 	}
 	ws.ApplyConfig()
+	if ws.Config.AutoReversion {
+		ws.assetGraph.start()
+	}
 
 	listenStr := strings.TrimSpace(ws.Config.Listen)
 	defaultListen := listenStr == ""
@@ -546,6 +551,7 @@ func (ws *WebServer) closeListeners() {
 // Stop 停止服务，实现 starter.Service 接口
 func (ws *WebServer) Stop(ctx context.Context) error {
 	ws.running = false
+	ws.assetGraph.stop()
 
 	// 执行停机钩子 (反序)
 	ws.shutdownHooksLock.Lock()

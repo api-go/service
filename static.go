@@ -33,6 +33,7 @@ func (ws *WebServer) assetCachePath(name string) string {
 
 type staticFSMatch struct {
 	fileSystem http.FileSystem
+	route      string
 	name       string
 }
 
@@ -196,13 +197,69 @@ func (ws *WebServer) getStaticFSMatches(requestPath, host string) []staticFSMatc
 			}
 			name := strings.TrimPrefix(requestPath, route)
 			name = strings.TrimPrefix(pathpkg.Clean("/"+name), "/")
-			matches = append(matches, staticFSMatch{fileSystem: config[route], name: name})
+			matches = append(matches, staticFSMatch{fileSystem: config[route], route: route, name: name})
 		}
 		if ws.staticFSExclusive[candidate] {
 			break
 		}
 	}
 	return matches
+}
+
+func physicalAssetNamespace(host string) string {
+	return "file:" + host
+}
+
+func (ws *WebServer) physicalAssetLoader(host string) assetGraphLoader {
+	return func(assetPath string, readContent bool) ([]byte, int64, bool) {
+		physicalPath := ws.getStaticFilePath(assetPath, host)
+		if physicalPath == "" {
+			return nil, 0, false
+		}
+		info := file.GetFileInfo(physicalPath)
+		if info == nil || info.IsDir {
+			return nil, 0, false
+		}
+		if !readContent {
+			return nil, info.ModTime, true
+		}
+		data, err := file.ReadBytes(physicalPath)
+		return data, info.ModTime, err == nil
+	}
+}
+
+func staticFSAssetNamespace(host string, match staticFSMatch) string {
+	return "fs:" + host + ":" + match.route
+}
+
+func staticFSAssetLoader(match staticFSMatch) assetGraphLoader {
+	return func(assetPath string, readContent bool) ([]byte, int64, bool) {
+		name := strings.TrimPrefix(assetPath, match.route)
+		name = strings.TrimPrefix(pathpkg.Clean("/"+name), "/")
+		opened, err := match.fileSystem.Open(name)
+		if err != nil {
+			return nil, 0, false
+		}
+		defer opened.Close()
+		info, err := opened.Stat()
+		if err != nil || info.IsDir() {
+			return nil, 0, false
+		}
+		if !readContent {
+			return nil, info.ModTime().Unix(), true
+		}
+		data, err := io.ReadAll(opened)
+		return data, info.ModTime().Unix(), err == nil
+	}
+}
+
+func (ws *WebServer) graphAssetModTime(namespace, assetPath string, loader assetGraphLoader) (time.Time, bool) {
+	_, physicalTime, ok := loader(assetPath, false)
+	if !ok {
+		return time.Time{}, false
+	}
+	ws.assetGraph.observe(namespace, assetPath, physicalTime, loader)
+	return time.Unix(ws.assetGraph.logicalTime(namespace, assetPath, physicalTime), 0), true
 }
 
 func (ws *WebServer) findMatchedPathSorted(config []*staticType, requestPath string) string {
@@ -229,6 +286,7 @@ func (ws *WebServer) processStatic(requestPath string, request *Request, respons
 	if info == nil {
 		return false
 	}
+	wasDirectory := info.IsDir
 
 	if info.IsDir {
 		// 自动查找索引文件
@@ -250,16 +308,30 @@ func (ws *WebServer) processStatic(requestPath string, request *Request, respons
 	if info.IsDir {
 		return false
 	}
+	assetSourcePath := request.URL.Path
+	if wasDirectory {
+		assetSourcePath = pathpkg.Join(assetSourcePath, filepath.Base(filePath))
+	}
 
 	// 静态文件通过 Cookie 维护 ID，不应答 Device-Id / Session-Id 头
 	response.Header().Del(ws.usedDeviceIdKey)
 	response.Header().Del(ws.usedSessionIdKey)
+	contentType := mime.TypeByExtension(filepath.Ext(filePath))
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	modTime := time.Unix(info.ModTime, 0)
+	assetNamespace := physicalAssetNamespace(request.Host)
+	assetLoader := ws.physicalAssetLoader(request.Host)
+	if ws.Config.AutoReversion {
+		ws.assetGraph.observe(assetNamespace, assetSourcePath, info.ModTime, assetLoader)
+		modTime = time.Unix(ws.assetGraph.logicalTime(assetNamespace, assetSourcePath, info.ModTime), 0)
+	}
 
 	// 检查 304
 	if ifModifiedSince := request.Header().Get("If-Modified-Since"); ifModifiedSince != "" {
 		if t, err := time.Parse(http.TimeFormat, ifModifiedSince); err == nil {
-			if time.Unix(info.ModTime, 0).Truncate(time.Second).Before(t.Truncate(time.Second)) ||
-				time.Unix(info.ModTime, 0).Truncate(time.Second).Equal(t.Truncate(time.Second)) {
+			if modTime.Truncate(time.Second).Before(t.Truncate(time.Second)) || modTime.Truncate(time.Second).Equal(t.Truncate(time.Second)) {
 				response.WriteHeader(http.StatusNotModified)
 				return true
 			}
@@ -267,12 +339,8 @@ func (ws *WebServer) processStatic(requestPath string, request *Request, respons
 	}
 
 	// 发送文件
-	contentType := mime.TypeByExtension(filepath.Ext(filePath))
-	if contentType == "" {
-		contentType = "application/octet-stream"
-	}
 	response.Header().Set("Content-Type", contentType)
-	response.Header().Set("Last-Modified", time.Unix(info.ModTime, 0).UTC().Format(http.TimeFormat))
+	response.Header().Set("Last-Modified", modTime.UTC().Format(http.TimeFormat))
 
 	data, err := file.ReadBytes(filePath)
 	if err != nil {
@@ -281,8 +349,7 @@ func (ws *WebServer) processStatic(requestPath string, request *Request, respons
 
 	if ws.webDevEnabled || ((ws.Config.AutoReversion || ws.Config.AutoMinify) && isAssetTextType(contentType, filePath)) {
 		if ws.Config.AutoMinify && isAssetTextType(contentType, filePath) {
-			modTime := time.Unix(info.ModTime, 0)
-			if cached, cacheErr := BuildAssetCache(filePath, ws.assetCachePath(request.URL.Path), modTime, data, func(input []byte) ([]byte, error) { return minifyAsset(filePath, input) }); len(cached) > 0 {
+			if cached, cacheErr := BuildAssetCache(filePath, ws.assetCachePath(request.URL.Path), time.Unix(info.ModTime, 0), data, func(input []byte) ([]byte, error) { return minifyAsset(filePath, input) }); len(cached) > 0 {
 				data = cached
 				if cacheErr != nil {
 					logger.Error("failed to minify asset", "path", filePath, "error", cacheErr.Error())
@@ -290,17 +357,8 @@ func (ws *WebServer) processStatic(requestPath string, request *Request, respons
 			}
 		}
 		if ws.Config.AutoReversion && (strings.HasPrefix(contentType, "text/html") || strings.HasPrefix(contentType, "text/css")) {
-			data = RewriteAssetReferencesCached(request.Host, request.URL.Path, time.Unix(info.ModTime, 0), data, func(_ string, sourcePath, assetPath string) (time.Time, bool) {
-				resolvedURL := resolveAssetPath(sourcePath, assetPath)
-				physicalPath := ws.getStaticFilePath(resolvedURL, request.Host)
-				if physicalPath == "" {
-					return time.Time{}, false
-				}
-				assetInfo := file.GetFileInfo(physicalPath)
-				if assetInfo == nil || assetInfo.IsDir {
-					return time.Time{}, false
-				}
-				return time.Unix(assetInfo.ModTime, 0), true
+			data = RewriteAssetReferencesCached(request.Host, assetSourcePath, time.Unix(info.ModTime, 0), data, func(_ string, _ string, assetPath string) (time.Time, bool) {
+				return ws.graphAssetModTime(assetNamespace, assetPath, assetLoader)
 			})
 		}
 		_, _ = response.WriteFiltered(data)
@@ -349,6 +407,7 @@ func (ws *WebServer) processStaticFS(match staticFSMatch, request *Request, resp
 	if info.IsDir() {
 		return false
 	}
+	assetSourcePath := pathpkg.Join("/", match.route, name)
 	seeker, ok := opened.(interface {
 		Read([]byte) (int, error)
 		Seek(int64, int) (int64, error)
@@ -362,12 +421,25 @@ func (ws *WebServer) processStaticFS(match staticFSMatch, request *Request, resp
 	if contentType != "" {
 		response.Header().Set("Content-Type", contentType)
 	}
+	assetNamespace := staticFSAssetNamespace(request.Host, match)
+	assetLoader := staticFSAssetLoader(match)
 	if (ws.webDevEnabled && strings.HasPrefix(contentType, "text/html")) || ((ws.Config.AutoReversion || ws.Config.AutoMinify) && isAssetTextType(contentType, name)) {
+		modTime := info.ModTime()
+		if ws.Config.AutoReversion {
+			ws.assetGraph.observe(assetNamespace, assetSourcePath, info.ModTime().Unix(), assetLoader)
+			modTime = time.Unix(ws.assetGraph.logicalTime(assetNamespace, assetSourcePath, info.ModTime().Unix()), 0)
+		}
+		response.Header().Set("Last-Modified", modTime.UTC().Format(http.TimeFormat))
+		if ifModifiedSince := request.Header().Get("If-Modified-Since"); ifModifiedSince != "" {
+			if t, err := time.Parse(http.TimeFormat, ifModifiedSince); err == nil && !modTime.Truncate(time.Second).After(t.Truncate(time.Second)) {
+				response.WriteHeader(http.StatusNotModified)
+				return true
+			}
+		}
 		data, readErr := io.ReadAll(seeker)
 		if readErr != nil {
 			return false
 		}
-		response.Header().Set("Last-Modified", info.ModTime().UTC().Format(http.TimeFormat))
 		if ws.Config.AutoMinify && isAssetTextType(contentType, name) {
 			if cached, cacheErr := BuildAssetCache(name, ws.assetCachePath(name), info.ModTime(), data, func(input []byte) ([]byte, error) { return minifyAsset(name, input) }); len(cached) > 0 {
 				data = cached
@@ -377,17 +449,8 @@ func (ws *WebServer) processStaticFS(match staticFSMatch, request *Request, resp
 			}
 		}
 		if ws.Config.AutoReversion && (strings.HasPrefix(contentType, "text/html") || strings.HasPrefix(contentType, "text/css")) {
-			data = RewriteAssetReferencesCached(request.Host, "/"+strings.TrimPrefix(name, "/"), info.ModTime(), data, func(_ string, sourcePath, assetPath string) (time.Time, bool) {
-				asset, err := match.fileSystem.Open(strings.TrimPrefix(assetPath, "/"))
-				if err != nil {
-					return time.Time{}, false
-				}
-				defer asset.Close()
-				info, err := asset.Stat()
-				if err != nil || info.IsDir() {
-					return time.Time{}, false
-				}
-				return info.ModTime(), true
+			data = RewriteAssetReferencesCached(request.Host, assetSourcePath, info.ModTime(), data, func(_ string, _ string, assetPath string) (time.Time, bool) {
+				return ws.graphAssetModTime(assetNamespace, assetPath, assetLoader)
 			})
 		}
 		_, _ = response.WriteFiltered(data)

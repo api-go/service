@@ -1,5 +1,13 @@
 # Service Module Test Report
 
+## v1.5.31 (2026-08-26)
+- `TestAssetDependencyGraphPropagatesNestedDependencyTime` 验证双向依赖图将末端资源的物理修改时间逐层传播为上层资源的逻辑修改时间，起点和末端直接由依赖列表长度推导。
+- `TestAssetDependencyGraphHandlesCycles` 验证循环引用不会导致扫描递归失控。
+- `TestAssetDependencyGraphLogicalLookupDoesNotLoadSource` 验证高频逻辑时间查询只读取内存节点，不访问资源源。
+- `TestAutoAssetReversionInvalidatesHTMLWhenDependencyChanges` 与 `TestAutoAssetReversionInvalidatesPhysicalHTMLWhenDependencyChanges` 验证 `StaticFS` 和磁盘静态目录使用依赖感知的 200 / 304 语义。
+- `TestAutoAssetReversionInvalidatesDirectoryIndexForNestedDependency` 验证目录入口映射到 `index.html` 后，三层依赖变化能更新应答和资源版本。
+- `go test -v ./...`、`go test -bench=. ./...` 与 `go test -race ./...` 通过。
+
 ## v1.5.30 (2026-08-26)
 - `TestMinifyJSCompressesMakeDomHTMLAndPreservesEscapedExpressions` 验证 `/*html*/` 模板中的声明式属性和 `\${...}` 表达式保持有效，同时压缩 HTML 空白。
 - `TestMinifyJSOnlyProcessesHTMLMarkedTemplates` 验证未标记 JS 模板不被当作 HTML 压缩，并验证转义反引号。
@@ -33,9 +41,9 @@
 - `go test -v ./...` 与 `go test -bench=. ./...` 全部通过。
 
 ## 性能测试 (Benchmark)
-- 测试日期: 2026-08-17
-- 版本: v1.5.23
-- 指标: `BenchmarkRouting`: **2312 ns/op**
+- 测试日期: 2026-08-26
+- 版本: v1.5.31
+- 指标: `BenchmarkRouting`: **2699 ns/op**
 - 环境: Darwin / Apple M3 Max
 
 ## 单元测试覆盖 (Unit Test)

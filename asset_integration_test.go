@@ -1,10 +1,12 @@
 package service
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -72,5 +74,207 @@ func TestAutoAssetReversionStaticHTTPScenario(t *testing.T) {
 	defer rangeResp.Body.Close()
 	if rangeResp.StatusCode != http.StatusPartialContent {
 		t.Fatalf("range status: %d", rangeResp.StatusCode)
+	}
+}
+
+func TestAutoAssetReversionInvalidatesHTMLWhenDependencyChanges(t *testing.T) {
+	ws := NewWebServer()
+	ws.Config.AutoReversion = true
+	dir := t.TempDir()
+	indexPath := filepath.Join(dir, "index.html")
+	appPath := filepath.Join(dir, "app.js")
+	baseTime := time.Unix(1700000000, 0)
+	if err := os.WriteFile(indexPath, []byte(`<script src="app.js"></script>`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(appPath, []byte(`var app = 1;`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(indexPath, baseTime, baseTime); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(appPath, baseTime, baseTime); err != nil {
+		t.Fatal(err)
+	}
+	ws.ReplaceStaticFSExclusive("*", map[string]http.FileSystem{"/": http.Dir(dir)})
+	server := httptest.NewServer(&RouteHandler{ws: ws})
+	defer server.Close()
+
+	first, err := http.Get(server.URL + "/index.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	first.Body.Close()
+	lastModified := first.Header.Get("Last-Modified")
+	if lastModified == "" {
+		t.Fatal("missing Last-Modified")
+	}
+
+	if err := os.Chtimes(appPath, baseTime.Add(2*time.Second), baseTime.Add(2*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	ws.assetGraph.scan()
+	request, err := http.NewRequest(http.MethodGet, server.URL+"/index.html", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("If-Modified-Since", lastModified)
+	changed, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed.Body.Close()
+	if changed.StatusCode != http.StatusOK {
+		t.Fatalf("dependency change status: got %d, want %d", changed.StatusCode, http.StatusOK)
+	}
+	if changed.Header.Get("Last-Modified") == lastModified {
+		t.Fatalf("Last-Modified did not follow dependency: %s", lastModified)
+	}
+
+	unchangedRequest, err := http.NewRequest(http.MethodGet, server.URL+"/index.html", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unchangedRequest.Header.Set("If-Modified-Since", changed.Header.Get("Last-Modified"))
+	unchanged, err := http.DefaultClient.Do(unchangedRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unchanged.Body.Close()
+	if unchanged.StatusCode != http.StatusNotModified {
+		t.Fatalf("unchanged dependency status: got %d, want %d", unchanged.StatusCode, http.StatusNotModified)
+	}
+}
+
+func TestAutoAssetReversionInvalidatesPhysicalHTMLWhenDependencyChanges(t *testing.T) {
+	ws := NewWebServer()
+	ws.Config.AutoReversion = true
+	dir := t.TempDir()
+	indexPath := filepath.Join(dir, "index.html")
+	appPath := filepath.Join(dir, "app.js")
+	baseTime := time.Unix(1700000100, 0)
+	if err := os.WriteFile(indexPath, []byte(`<script src="app.js"></script>`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(appPath, []byte(`var app = 1;`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(indexPath, baseTime, baseTime); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(appPath, baseTime, baseTime); err != nil {
+		t.Fatal(err)
+	}
+	ws.Static("/", dir)
+	server := httptest.NewServer(&RouteHandler{ws: ws})
+	defer server.Close()
+
+	first, err := http.Get(server.URL + "/index.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	first.Body.Close()
+	lastModified := first.Header.Get("Last-Modified")
+	if lastModified == "" {
+		t.Fatal("missing Last-Modified")
+	}
+
+	if err := os.Chtimes(appPath, baseTime.Add(2*time.Second), baseTime.Add(2*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	ws.assetGraph.scan()
+	request, err := http.NewRequest(http.MethodGet, server.URL+"/index.html", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("If-Modified-Since", lastModified)
+	changed, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed.Body.Close()
+	if changed.StatusCode != http.StatusOK {
+		t.Fatalf("dependency change status: got %d, want %d", changed.StatusCode, http.StatusOK)
+	}
+
+	unchangedRequest, err := http.NewRequest(http.MethodGet, server.URL+"/index.html", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unchangedRequest.Header.Set("If-Modified-Since", changed.Header.Get("Last-Modified"))
+	unchanged, err := http.DefaultClient.Do(unchangedRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unchanged.Body.Close()
+	if unchanged.StatusCode != http.StatusNotModified {
+		t.Fatalf("unchanged dependency status: got %d, want %d", unchanged.StatusCode, http.StatusNotModified)
+	}
+}
+
+func TestAutoAssetReversionInvalidatesDirectoryIndexForNestedDependency(t *testing.T) {
+	ws := NewWebServer()
+	ws.Config.AutoReversion = true
+	dir := t.TempDir()
+	baseTime := time.Unix(1700000200, 0)
+	files := map[string]string{
+		"index.html": `<link href="app.css">`,
+		"app.css":    `.app{background:url("theme.css")}`,
+		"theme.css":  `.app{color:red}`,
+	}
+	for name, content := range files {
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(path, baseTime, baseTime); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ws.Static("/", dir)
+	server := httptest.NewServer(&RouteHandler{ws: ws})
+	defer server.Close()
+
+	first, err := http.Get(server.URL + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstBody, err := io.ReadAll(first.Body)
+	first.Body.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	lastModified := first.Header.Get("Last-Modified")
+	if lastModified == "" {
+		t.Fatal("missing Last-Modified")
+	}
+	if want := "app.css?v=" + strconv.FormatInt(baseTime.Unix(), 36); !strings.Contains(string(firstBody), want) {
+		t.Fatalf("directory index was not rewritten with nested graph: %s", firstBody)
+	}
+
+	changedTime := baseTime.Add(2 * time.Second)
+	if err := os.Chtimes(filepath.Join(dir, "theme.css"), changedTime, changedTime); err != nil {
+		t.Fatal(err)
+	}
+	ws.assetGraph.scan()
+	request, err := http.NewRequest(http.MethodGet, server.URL+"/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("If-Modified-Since", lastModified)
+	changed, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changedBody, err := io.ReadAll(changed.Body)
+	changed.Body.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed.StatusCode != http.StatusOK {
+		t.Fatalf("nested dependency change status: got %d, want %d", changed.StatusCode, http.StatusOK)
+	}
+	if want := "app.css?v=" + strconv.FormatInt(changedTime.Unix(), 36); !strings.Contains(string(changedBody), want) {
+		t.Fatalf("parent dependency version did not follow leaf: %s", changedBody)
 	}
 }
