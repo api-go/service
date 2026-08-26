@@ -1,10 +1,15 @@
 # Service Module Test Report
 
+## v1.5.30 (2026-08-26)
+- `TestMinifyJSCompressesMakeDomHTMLAndPreservesEscapedExpressions` 验证 `/*html*/` 模板中的声明式属性和 `\${...}` 表达式保持有效，同时压缩 HTML 空白。
+- `TestMinifyJSOnlyProcessesHTMLMarkedTemplates` 验证未标记 JS 模板不被当作 HTML 压缩，并验证转义反引号。
+- `go test ./service -count=1` 通过。
+
 ## v1.5.28 (2026-08-25)
 - `TestParseListenConfigs` 验证 `|` 分隔的 HTTP、HTTPS、H2C 配置全部解析。
 - `TestMultiListenerWithAutoTLS` 验证 HTTP/HTTPS 同时监听、真实 TLS 握手、完整状态地址及 99 年自签名证书持久化。
 - 同一测试验证 Host 级 HTTPS 308 跳转使用当前实际 TLS 端口。
-- `TestMinifyAsset` 验证 HTML 保持压缩，并验证 `.js` 与 `.mjs` 原样返回。
+- `TestMinifyAsset` 验证 HTML、JavaScript 与模块资源压缩。
 - `go test -race ./...` 通过。
 
 ## v1.5.24 (2026-08-22)

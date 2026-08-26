@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -36,9 +37,72 @@ func TestMinifyAsset(t *testing.T) {
 	for _, name := range []string{"app.js", "module.mjs"} {
 		input := []byte("const value = 1 + 2;\n")
 		got, err = minifyAsset(name, input)
-		if err != nil || string(got) != string(input) {
-			t.Fatalf("JavaScript must remain unchanged for %s: %q, %v", name, got, err)
+		if err != nil || len(got) >= len(input) || !strings.Contains(string(got), "const value") {
+			t.Fatalf("JavaScript was not minified safely for %s: %q, %v", name, got, err)
 		}
+	}
+}
+
+func TestMinifyHTMLPreservesDeclarativeUIBindings(t *testing.T) {
+	input := []byte(`<!doctype html>
+<List $.state.list="users" $onclick="selectUser(item.id)">
+  <template #item="item">
+    <DataGrid $.state.rows="item.rows" $class="${item.active ? 'table-success' : ''}"></DataGrid>
+    <AutoForm $.state.schema="item.schema" $onsubmit="saveForm(form)"></AutoForm>
+  </template>
+</List>
+<script>
+  const template = '<div data-value="${user.id}">${user.name}</div>';
+</script>`)
+	got, err := minifyAsset("components.html", input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		`$.state.list=users`,
+		`$onclick=selectUser(item.id)`,
+		`$.state.rows=item.rows`,
+		`${item.active ? 'table-success' : ''}`,
+		`$.state.schema=item.schema`,
+		`$onsubmit=saveForm(form)`,
+		`${user.id}`,
+		`${user.name}`,
+	} {
+		if !strings.Contains(string(got), want) {
+			t.Fatalf("minified HTML lost declarative or template content %q: %s", want, got)
+		}
+	}
+}
+
+func TestMinifyJSCompressesMakeDomHTMLAndPreservesEscapedExpressions(t *testing.T) {
+	input := []byte("const blueprint = globalThis.Util.makeDom(/*html*/`\n  <div control-wrapper $class=\"\\${this.inline ? 'd-flex align-items-center gap-2' : 'mb-3 d-flex align-items-center gap-2'}\">\n    <List></List>\n  </div>\n`); const text = `keep whitespace`;\n")
+	got, err := minifyAsset("AutoForm.js", input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := string(got)
+	for _, want := range []string{`control-wrapper`, `\${this.inline ? 'd-flex align-items-center gap-2' : 'mb-3 d-flex align-items-center gap-2'}`, `<list></list>`, "text=`keep whitespace`"} {
+		if !strings.Contains(result, want) {
+			t.Fatalf("embedded template content was not preserved %q: %s", want, result)
+		}
+	}
+	if strings.Contains(result, "\n  <div") {
+		t.Fatalf("embedded HTML whitespace was not minified: %s", result)
+	}
+}
+
+func TestMinifyJSOnlyProcessesHTMLMarkedTemplates(t *testing.T) {
+	input := []byte("const html = /*html*/`\n  <div>\n    literal \\` backtick\n  </div>\n`; const text = `  keep   whitespace  `;\n")
+	got, err := minifyAsset("marked.js", input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := string(got)
+	if !strings.Contains(result, "`<div>literal \\` backtick</div>`") {
+		t.Fatalf("marked HTML template was not minified safely: %s", result)
+	}
+	if !strings.Contains(result, "text=`  keep   whitespace  `") {
+		t.Fatalf("unmarked JavaScript template was changed: %s", result)
 	}
 }
 
