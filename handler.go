@@ -215,8 +215,20 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 filter:
+	if response.pendingWrite {
+		if isEmptyServiceOutput(result) {
+			result = response.pending
+			response.pending = nil
+			response.pendingWrite = false
+		} else {
+			// Preserve the historical write-before-return ordering for handlers that do both.
+			_, _ = response.physicalWrite(response.pending)
+			response.pending = nil
+			response.pendingWrite = false
+		}
+	}
 	// Direct response writes are already on the wire and intentionally bypass
-	// output filters. Static responses opt in through WriteFiltered.
+	// output filters. Static responses opt in through the internal filtered writer.
 	if response.changed && !response.filteredWrite && result == nil {
 		return
 	}
@@ -240,13 +252,27 @@ filter:
 		if result != nil {
 			outputResult(response, result)
 		} else if response.filteredWrite {
-			response.PhysicalWrite(response.body)
+			response.physicalWrite(response.body)
 		}
 	} else {
 		// 普通模式：result (业务返回值) 需要写出，而 response.changed (比如静态文件) 已经由 Response.Write 写过了
 		if result != nil {
 			outputResult(response, result)
 		}
+	}
+}
+
+func isEmptyServiceOutput(result any) bool {
+	if result == nil {
+		return true
+	}
+	switch value := result.(type) {
+	case string:
+		return value == ""
+	case []byte:
+		return len(value) == 0
+	default:
+		return false
 	}
 }
 
@@ -534,7 +560,7 @@ func outputResult(response *Response, result any) {
 
 	response.keepBody(data)
 	if response.server != nil && response.server.hasOutFilter {
-		response.PhysicalWrite(data)
+		response.physicalWrite(data)
 	} else {
 		_, _ = response.Write(data)
 	}

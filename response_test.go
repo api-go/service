@@ -3,6 +3,7 @@ package service
 import (
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 func TestResponseWriteBytes(t *testing.T) {
@@ -32,10 +33,26 @@ func TestResponseWriteBypassesOutputFilterBuffer(t *testing.T) {
 	}
 }
 
-func TestResponseWriteFilteredOptsIntoOutputFilterBuffer(t *testing.T) {
+func TestResponseWriteBuffersFilterableHTML(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	server := &WebServer{hasOutFilter: true, assetResolver: func(_, _, _ string) (time.Time, bool) {
+		return time.Time{}, false
+	}}
+	server.Config.AutoReversion = true
+	response := NewResponse(recorder, server)
+	response.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if _, err := response.Write([]byte("<html></html>")); err != nil {
+		t.Fatal(err)
+	}
+	if recorder.Body.Len() != 0 || !response.pendingWrite || string(response.pending) != "<html></html>" {
+		t.Fatalf("filterable HTML was not buffered: wire=%q pending=%q", recorder.Body.String(), response.pending)
+	}
+}
+
+func TestResponseInternalFilteredWriteOptsIntoOutputFilterBuffer(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	response := NewResponse(recorder, &WebServer{hasOutFilter: true})
-	if _, err := response.WriteFiltered([]byte("html")); err != nil {
+	if _, err := response.writeFiltered([]byte("html")); err != nil {
 		t.Fatal(err)
 	}
 	if recorder.Body.Len() != 0 || !response.filteredWrite || string(response.body) != "html" {

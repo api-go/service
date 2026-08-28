@@ -82,11 +82,11 @@ func main() {
 - **文档生成**: `service.MakeDocument()` 返回全量接口描述
 - **依赖注入**: `service.GetInjectT[T]()` 快速获取已注入的对象或组件
 
-低代码需要转发二进制或 SSE 流时，使用 `response.WriteBytes(chunk)` 原样写入动态运行时提供的字节数组；文本输出继续使用 `response.WriteString(text)`。`Write`、`WriteBytes` 和 `WriteString` 都直接写入响应并保持流式行为，不会被全局输出过滤器强制缓冲；确实需要过滤器处理的内容应显式使用 `response.WriteFiltered(bytes)`。
+低代码需要转发二进制或 SSE 流时，使用 `response.WriteBytes(chunk)` 原样写入动态运行时提供的字节数组，并在每个需要立即发送的分块后调用 `response.Flush()`；文本输出使用 `response.WriteString(text)`。`Write`、`WriteBytes` 和 `WriteString` 会根据 `Content-Type` 自动缓冲 AutoReversion 或开发注入需要处理的 HTML/CSS，其他内容仍直接输出。首次调用 `Flush()` 会原样发送尚未处理的缓冲，并让当前响应后续写入保持实时流式行为。
 
 自定义静态源必须返回可 `Seek` 的 `http.File`。生产模式下静态内容直接流式输出并绕过 output filter；`EnableWebDev` 仅会为 HTML 显式缓冲内容，用于注入开发热刷新脚本。
 
-启用 `AutoMinify` 时，HTML、CSS、JavaScript 和模块资源会生成压缩缓存。JavaScript 中需要压缩的嵌入式 HTML 模板使用 `/*html*/` 标记，例如 `Util.makeDom(/*html*/\`<div>...</div>\`)`；未标记的 JavaScript 模板字符串保持原样。
+启用 `AutoMinify` 时，静态 HTML、CSS、JavaScript 和模块资源会生成压缩缓存；动态响应不会压缩，避免每次请求重复消耗 CPU。JavaScript 中需要压缩的嵌入式 HTML 模板使用 `/*html*/` 标记，例如 `Util.makeDom(/*html*/\`<div>...</div>\`)`；未标记的 JavaScript 模板字符串保持原样。
 
 启用 `AutoReversion` 时，框架会维护静态资源的双向依赖关系，并每 5 秒扫描一次已发现资源。依赖资源更新后，其修改时间会逐层传播为引用方的逻辑修改时间；静态应答的 `Last-Modified`、304 判断和资源版本号均使用该逻辑时间。正常请求只查询内存中的逻辑时间，不会临时遍历依赖树。
 

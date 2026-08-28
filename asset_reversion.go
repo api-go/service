@@ -93,6 +93,10 @@ func AssetVersion(host, sourcePath, assetPath string, resolve AssetVersionResolv
 
 // RewriteAssetReferences rewrites common HTML and CSS references in content.
 func RewriteAssetReferences(host, sourcePath string, content []byte, resolve AssetVersionResolver) []byte {
+	return rewriteAssetReferences(host, sourcePath, content, resolve, strings.HasSuffix(strings.ToLower(sourcePath), ".css"))
+}
+
+func rewriteAssetReferences(host, sourcePath string, content []byte, resolve AssetVersionResolver, rewriteCSS bool) []byte {
 	if resolve == nil || len(content) == 0 {
 		return content
 	}
@@ -123,7 +127,7 @@ func RewriteAssetReferences(host, sourcePath string, content []byte, resolve Ass
 		}
 		return parts[1] + strings.Join(candidates, ", ") + parts[3]
 	})
-	if strings.HasSuffix(strings.ToLower(sourcePath), ".css") {
+	if rewriteCSS {
 		result = cssURLPattern.ReplaceAllStringFunc(result, func(match string) string {
 			parts := cssURLPattern.FindStringSubmatch(match)
 			return parts[1] + AssetVersion(host, sourcePath, parts[2], resolve) + parts[3]

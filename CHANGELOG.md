@@ -1,5 +1,12 @@
 # CHANGELOG - go/service
 
+## v1.5.32 (2026-08-28)
+- **动态文本响应**: `Response.Write`、`WriteString` 与 `WriteBytes` 根据 `Content-Type` 自动缓冲需要 AutoReversion 或开发注入处理的 HTML/CSS，不再要求业务代码显式选择过滤写入 API。
+- **流式切换**: `Response.Flush` 会原样发送待处理缓冲并将当前响应切换为实时直写，SSE 与二进制分块继续保持低延迟。
+- **内部 API**: 过滤缓冲与物理写入收回为包内实现，业务侧统一使用 `Write`、`WriteString`、`WriteBytes` 与 `Flush`。
+- **响应一致性**: 动态 HTML/CSS 支持自动资源版本改写；修改内容时移除失效的 `Content-Length`。
+- **依赖对齐**: 升级 `discover` 至 `v1.5.10`、`redis` 至 `v1.5.13`。
+
 ## v1.5.31 (2026-08-26)
 - **资源依赖图**: AutoReversion 使用双向依赖关系维护资源的物理修改时间和逻辑修改时间，支持 HTML、CSS 与 JavaScript 资源的多层依赖传播。
 - **条件请求**: 静态文件和 `StaticFS` 的 `Last-Modified` 与 304 判断统一使用逻辑修改时间，末端依赖变化时上层页面不再错误返回 304。

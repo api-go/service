@@ -361,7 +361,7 @@ func (ws *WebServer) processStatic(requestPath string, request *Request, respons
 				return ws.graphAssetModTime(assetNamespace, assetPath, assetLoader)
 			})
 		}
-		_, _ = response.WriteFiltered(data)
+		_, _ = response.writeFiltered(data)
 	} else {
 		_, _ = response.Write(data)
 	}
@@ -453,7 +453,7 @@ func (ws *WebServer) processStaticFS(match staticFSMatch, request *Request, resp
 				return ws.graphAssetModTime(assetNamespace, assetPath, assetLoader)
 			})
 		}
-		_, _ = response.WriteFiltered(data)
+		_, _ = response.writeFiltered(data)
 		return true
 	}
 	http.ServeContent(&staticResponseWriter{response: response}, request.Request, info.Name(), info.ModTime(), seeker)

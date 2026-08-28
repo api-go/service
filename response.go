@@ -16,9 +16,12 @@ type Response struct {
 	Writer        http.ResponseWriter `js:"-"`
 	Code          int
 	body          []byte       `js:"-"`
+	pending       []byte       `js:"-"`
 	outLen        int          `js:"-"`
 	changed       bool         `js:"-"`
+	pendingWrite  bool         `js:"-"`
 	filteredWrite bool         `js:"-"`
+	streaming     bool         `js:"-"`
 	headerWritten bool         `js:"-"`
 	dontLog200    bool         `js:"-"`
 	dontLogArgs   []string     `js:"-"`
@@ -60,9 +63,14 @@ func (r *Response) Header() *Header {
 
 // Write 写入响应内容
 func (r *Response) Write(bytes []byte) (int, error) {
-	r.checkWriteHeader()
 	r.changed = true
 	r.outLen += len(bytes)
+	if r.shouldBufferWrite(bytes) {
+		r.pendingWrite = true
+		r.pending = append(r.pending, bytes...)
+		return len(bytes), nil
+	}
+	r.checkWriteHeader()
 
 	// 缓冲 body 用于日志记录
 	r.keepBody(bytes)
@@ -77,9 +85,24 @@ func (r *Response) Write(bytes []byte) (int, error) {
 	return n, nil
 }
 
-// WriteFiltered buffers bytes for registered output filters. Direct Write calls
-// remain streamable and bypass output filters.
-func (r *Response) WriteFiltered(bytes []byte) (int, error) {
+func (r *Response) shouldBufferWrite(data []byte) bool {
+	if r.streaming || r.server == nil {
+		return false
+	}
+	contentType := r.Header().Get("Content-Type")
+	if contentType == "" && len(data) > 0 {
+		contentType = http.DetectContentType(data)
+	}
+	if !r.server.shouldFilterDynamicContent(contentType, data) {
+		return false
+	}
+	if r.Header().Get("Content-Type") == "" {
+		r.Header().Set("Content-Type", contentType)
+	}
+	return true
+}
+
+func (r *Response) writeFiltered(bytes []byte) (int, error) {
 	if r.server == nil || !r.server.hasOutFilter {
 		return r.Write(bytes)
 	}
@@ -168,8 +191,7 @@ func (r *Response) keepBody(bytes []byte) {
 	}
 }
 
-// PhysicalWrite 物理写入网线，绕过过滤器缓冲逻辑
-func (r *Response) PhysicalWrite(bytes []byte) (int, error) {
+func (r *Response) physicalWrite(bytes []byte) (int, error) {
 	r.checkWriteHeader()
 	if r.ProxyHeader != nil {
 		r.copyProxyHeader()
@@ -224,6 +246,12 @@ func (r *Response) copyProxyHeader() {
 
 // Flush 刷新响应缓冲区
 func (r *Response) Flush() {
+	if len(r.pending) > 0 {
+		_, _ = r.physicalWrite(r.pending)
+		r.pending = nil
+		r.pendingWrite = false
+	}
+	r.streaming = true
 	if flusher, ok := r.Writer.(http.Flusher); ok {
 		flusher.Flush()
 	}

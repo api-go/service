@@ -1,5 +1,12 @@
 # Service Module Test Report
 
+## v1.5.32 (2026-08-28)
+- `TestAutoAssetReversionDynamicHTMLWriteString` 验证动态 HTML 通过 `WriteString` 写入时自动追加资源版本。
+- `TestAutoAssetReversionDetectsDynamicHTMLWriteString` 验证未显式设置 `Content-Type` 时从首个完整 HTML 写入检测类型并完成版本改写。
+- `TestAutoAssetReversionFlushKeepsDynamicHTMLStreaming` 验证 `Flush` 将响应切换为流式直写并跳过尚未执行的内容改写。
+- `TestResponseWriteBuffersFilterableHTML` 验证只有过滤器实际关心的内容进入完整响应缓冲。
+- `go test -v ./...` 与 `go test -bench=. ./...` 通过；`BenchmarkRouting`: **2524 ns/op**（Darwin / Apple M3 Max）。
+
 ## v1.5.31 (2026-08-26)
 - `TestAssetDependencyGraphPropagatesNestedDependencyTime` 验证双向依赖图将末端资源的物理修改时间逐层传播为上层资源的逻辑修改时间，起点和末端直接由依赖列表长度推导。
 - `TestAssetDependencyGraphHandlesCycles` 验证循环引用不会导致扫描递归失控。
@@ -29,7 +36,7 @@
 ## v1.5.23 验证
 - `TestResponseWriteBytes` 验证动态字节数组写入时保持 UTF-8 内容不变。
 - `TestResponseWriteBypassesOutputFilterBuffer` 验证直接响应即使存在输出过滤器也保持实时写入。
-- `TestResponseWriteFilteredOptsIntoOutputFilterBuffer` 验证显式过滤写入仍可由静态 HTML 注入等后置过滤器处理。
+- `TestResponseInternalFilteredWriteOptsIntoOutputFilterBuffer` 验证包内过滤写入仍可由静态 HTML 注入等后置过滤器处理。
 - `go test -v ./...` 与 `go test -bench=. ./...` 全部通过。
 
 ## v1.5.22 验证

@@ -40,6 +40,78 @@ func TestAutoAssetReversionDynamicHTML(t *testing.T) {
 	}
 }
 
+func TestAutoAssetReversionDynamicHTMLWriteString(t *testing.T) {
+	ws := NewWebServer()
+	ws.Config.AutoReversion = true
+	ws.EnableAssetReversion(func(_, _, asset string) (time.Time, bool) {
+		if asset == "/ui/app.js" {
+			return time.Unix(100, 0), true
+		}
+		return time.Time{}, false
+	})
+	ws.Register("GET", "/dynamic-write", func(response *Response) {
+		response.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = response.WriteString(`<html><script src="/ui/app.js"></script></html>`)
+	})
+	server := httptest.NewServer(&RouteHandler{ws: ws})
+	defer server.Close()
+	resp, err := http.Get(server.URL + "/dynamic-write")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), "app.js?v=2s") {
+		t.Fatalf("dynamic WriteString HTML was not rewritten: %s", body)
+	}
+}
+
+func TestAutoAssetReversionDetectsDynamicHTMLWriteString(t *testing.T) {
+	ws := NewWebServer()
+	ws.Config.AutoReversion = true
+	ws.EnableAssetReversion(func(_, _, asset string) (time.Time, bool) {
+		return time.Unix(100, 0), asset == "/ui/app.js"
+	})
+	ws.Register("GET", "/dynamic-detect", func(response *Response) {
+		_, _ = response.WriteString(`<!doctype html><script src="/ui/app.js"></script>`)
+	})
+	server := httptest.NewServer(&RouteHandler{ws: ws})
+	defer server.Close()
+	resp, err := http.Get(server.URL + "/dynamic-detect")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.HasPrefix(resp.Header.Get("Content-Type"), "text/html") || !strings.Contains(string(body), "app.js?v=2s") {
+		t.Fatalf("detected dynamic HTML was not rewritten: type=%q body=%s", resp.Header.Get("Content-Type"), body)
+	}
+}
+
+func TestAutoAssetReversionFlushKeepsDynamicHTMLStreaming(t *testing.T) {
+	ws := NewWebServer()
+	ws.Config.AutoReversion = true
+	ws.EnableAssetReversion(func(_, _, _ string) (time.Time, bool) {
+		return time.Unix(100, 0), true
+	})
+	ws.Register("GET", "/dynamic-stream", func(response *Response) {
+		response.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = response.WriteString(`<script src="/ui/app.js"></script>`)
+		response.Flush()
+	})
+	server := httptest.NewServer(&RouteHandler{ws: ws})
+	defer server.Close()
+	resp, err := http.Get(server.URL + "/dynamic-stream")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if strings.Contains(string(body), "?v=") {
+		t.Fatalf("flushed HTML must bypass rewriting: %s", body)
+	}
+}
+
 func TestAutoAssetReversionStaticHTTPScenario(t *testing.T) {
 	ws := NewWebServer()
 	ws.Config.AutoReversion = true
