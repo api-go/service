@@ -29,6 +29,11 @@ type staticType struct {
 	rootPath *string
 }
 
+type assetPatternState struct {
+	fingerprint string
+	modTime     int64
+}
+
 type WebServer struct {
 	Config          ServiceConfig
 	server          *http.Server
@@ -109,10 +114,13 @@ type WebServer struct {
 	hasOutFilter bool
 
 	// Web 开发模式配置
-	webDevEnabled bool
-	webDevConfig  watch.Config
-	assetResolver AssetVersionResolver
-	assetGraph    *assetDependencyGraph
+	webDevEnabled        bool
+	webDevConfig         watch.Config
+	assetResolver        AssetVersionResolver
+	assetPatternResolver AssetPatternResolver
+	assetPatternMu       sync.Mutex
+	assetPatternStates   map[string]assetPatternState
+	assetGraph           *assetDependencyGraph
 }
 
 type listenConfig struct {
@@ -165,6 +173,7 @@ func NewWebServer() *WebServer {
 		injectObjects:         make(map[reflect.Type]any),
 		injectFunctions:       make(map[reflect.Type]func() any),
 		assetGraph:            newAssetDependencyGraph(),
+		assetPatternStates:    make(map[string]assetPatternState),
 
 		usedSessionIdKey: "Session-ID",
 		usedDeviceIdKey:  "Device-ID",

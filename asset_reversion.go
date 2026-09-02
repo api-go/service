@@ -14,6 +14,10 @@ import (
 // The URL is resolved relative to sourcePath, which is the requesting document.
 type AssetVersionResolver func(host, sourcePath, assetPath string) (time.Time, bool)
 
+// AssetPatternResolver returns local asset URLs matching a pattern. Results
+// are emitted in their returned order; duplicates are removed by the caller.
+type AssetPatternResolver func(host, sourcePath, pattern string) []string
+
 type assetDependencyCacheEntry struct {
 	modTime time.Time
 	refs    []string
@@ -70,6 +74,61 @@ func collectAssetReferences(content string) []string {
 var assetAttrPattern = regexp.MustCompile(`(?is)(<[a-z][^>]*?\s(?:src|href|poster|file)\s*=\s*)(?:"([^"]+)"|'([^']+)'|([^\s>]+))`)
 var srcsetAttrPattern = regexp.MustCompile(`(?is)(<[a-z][^>]*?\ssrcset\s*=\s*["'])([^"']+)(["'])`)
 var cssURLPattern = regexp.MustCompile(`(?is)(url\(\s*["']?)([^"')\s]+)(["']?\s*\))`)
+var expandableAssetTagPattern = regexp.MustCompile(`(?is)<script\b[^>]*\bsrcs\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)[^>]*>\s*</script\s*>|<link\b[^>]*\bhrefs\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)[^>]*>`)
+var srcsAttrPattern = regexp.MustCompile(`(?is)\bsrcs\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))`)
+var hrefsAttrPattern = regexp.MustCompile(`(?is)\bhrefs\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))`)
+
+// ExpandAssetReferences expands script[srcs] and link[hrefs] into ordinary
+// tags before version rewriting. Patterns are resolved from left to right.
+func ExpandAssetReferences(host, sourcePath string, content []byte, resolve AssetPatternResolver) []byte {
+	if resolve == nil || len(content) == 0 {
+		return content
+	}
+	result := expandableAssetTagPattern.ReplaceAllStringFunc(string(content), func(tag string) string {
+		attr := srcsAttrPattern
+		name := "src"
+		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(tag)), "<link") {
+			attr = hrefsAttrPattern
+			name = "href"
+		}
+		parts := attr.FindStringSubmatch(tag)
+		if len(parts) == 0 {
+			return tag
+		}
+		value := parts[1]
+		if value == "" {
+			value = parts[2]
+		}
+		if value == "" {
+			value = parts[3]
+		}
+		seen := map[string]bool{}
+		expanded := make([]string, 0)
+		for _, pattern := range strings.Split(value, ",") {
+			pattern = strings.TrimSpace(pattern)
+			if pattern == "" {
+				continue
+			}
+			for _, assetPath := range resolve(host, sourcePath, pattern) {
+				if assetPath == "" || seen[assetPath] {
+					continue
+				}
+				seen[assetPath] = true
+				expanded = append(expanded, assetPath)
+			}
+		}
+		if len(expanded) == 0 {
+			return tag
+		}
+		out := make([]string, 0, len(expanded))
+		for _, assetPath := range expanded {
+			next := attr.ReplaceAllString(tag, name+`="`+assetPath+`"`)
+			out = append(out, next)
+		}
+		return strings.Join(out, "\n")
+	})
+	return []byte(result)
+}
 
 // AssetVersion appends the source asset's second-resolution modification time.
 func AssetVersion(host, sourcePath, assetPath string, resolve AssetVersionResolver) string {

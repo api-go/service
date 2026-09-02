@@ -1,5 +1,12 @@
 # Service Module Test Report
 
+## v1.5.33 验证
+- `TestExpandAssetReferencesPreservesPatternOrderAndDeduplicates` 验证 `srcs`、`hrefs` 按模式顺序展开并去重。
+- `TestAutoAssetReversionExpandsStaticPatterns` 验证静态 HTML 递归模式展开、稳定顺序与逐文件版本号。
+- `TestAutoAssetReversionInvalidatesPatternWhenMatchedFileIsRemoved` 验证匹配文件删除后推进 HTML logical time 并刷新展开结果。
+- `go test -v ./...` 与 `go test -bench=. ./...` 作为发布前完整验证执行。
+- `git diff --check` 通过。
+
 ## v1.5.32 (2026-08-28)
 - `TestAutoAssetReversionDynamicHTMLWriteString` 验证动态 HTML 通过 `WriteString` 写入时自动追加资源版本。
 - `TestAutoAssetReversionDetectsDynamicHTMLWriteString` 验证未显式设置 `Content-Type` 时从首个完整 HTML 写入检测类型并完成版本改写。

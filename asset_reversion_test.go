@@ -67,6 +67,32 @@ func TestRewriteSrcset(t *testing.T) {
 	}
 }
 
+func TestExpandAssetReferencesPreservesPatternOrderAndDeduplicates(t *testing.T) {
+	resolve := func(_, _, pattern string) []string {
+		switch pattern {
+		case "/frameworks/*.js":
+			return []string{"/frameworks/Bootstrap.js", "/frameworks/State.js"}
+		case "/components/**/*.js":
+			return []string{"/components/List.js", "/components/Nav.js"}
+		case "/components/Nav.js":
+			return []string{"/components/Nav.js"}
+		case "/styles/*.css":
+			return []string{"/styles/app.css", "/styles/theme.css"}
+		}
+		return nil
+	}
+	input := []byte(`<script defer srcs="/frameworks/*.js, /components/**/*.js, /components/Nav.js"></script><link rel="stylesheet" hrefs="/styles/*.css">`)
+	got := string(service.ExpandAssetReferences("example.com", "/admin/index.html", input, resolve))
+	want := `<script defer src="/frameworks/Bootstrap.js"></script>
+<script defer src="/frameworks/State.js"></script>
+<script defer src="/components/List.js"></script>
+<script defer src="/components/Nav.js"></script><link rel="stylesheet" href="/styles/app.css">
+<link rel="stylesheet" href="/styles/theme.css">`
+	if got != want {
+		t.Fatalf("expand mismatch:\n got %s\nwant %s", got, want)
+	}
+}
+
 func TestCachedAssetReferencesInvalidatesByModTime(t *testing.T) {
 	_ = service.CachedAssetReferences("/cached.html", time.Unix(1, 0), []byte(`<script src="/a.js"></script>`))
 	second := service.CachedAssetReferences("/cached.html", time.Unix(1, 0), []byte(`<script src="/b.js"></script>`))

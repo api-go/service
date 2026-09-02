@@ -1,5 +1,10 @@
 # CHANGELOG - go/service
 
+## v1.5.33 (2026-09-03)
+- **资源模式展开**: AutoReversion 支持在 HTML 中将 `script[srcs]` 与 `link[hrefs]` 展开为有序、去重且独立版本化的本地资源引用。
+- **资源失效追踪**: 匹配文件新增或删除后推进引用 HTML 的逻辑修改时间并刷新展开结果。
+- **依赖对齐**: Redis 依赖升级至 `v1.5.14`。
+
 ## v1.5.32 (2026-08-28)
 - **动态文本响应**: `Response.Write`、`WriteString` 与 `WriteBytes` 根据 `Content-Type` 自动缓冲需要 AutoReversion 或开发注入处理的 HTML/CSS，不再要求业务代码显式选择过滤写入 API。
 - **流式切换**: `Response.Flush` 会原样发送待处理缓冲并将当前响应切换为实时直写，SSE 与二进制分块继续保持低延迟。

@@ -149,6 +149,100 @@ func TestAutoAssetReversionStaticHTTPScenario(t *testing.T) {
 	}
 }
 
+func TestAutoAssetReversionExpandsStaticPatterns(t *testing.T) {
+	ws := NewWebServer()
+	ws.Config.AutoReversion = true
+	dir := t.TempDir()
+	files := map[string]string{
+		"index.html":            `<script srcs="/ui/*.js, /ui/**/*.js"></script>`,
+		"ui/State.js":           `var state = 1;`,
+		"ui/components/List.js": `var list = 1;`,
+	}
+	baseTime := time.Unix(1700000000, 0)
+	for name, content := range files {
+		filePath := filepath.Join(dir, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(filePath, baseTime, baseTime); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ws.ReplaceStaticFSExclusive("*", map[string]http.FileSystem{"/": http.Dir(dir)})
+	server := httptest.NewServer(&RouteHandler{ws: ws})
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/index.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	text := string(body)
+	if strings.Contains(text, "srcs=") || !strings.Contains(text, `/ui/State.js?v=`) || !strings.Contains(text, `/ui/components/List.js?v=`) {
+		t.Fatalf("patterns were not expanded and versioned: %s", text)
+	}
+	if strings.Index(text, "/ui/State.js") > strings.Index(text, "/ui/components/List.js") {
+		t.Fatalf("pattern order was not preserved: %s", text)
+	}
+}
+
+func TestAutoAssetReversionInvalidatesPatternWhenMatchedFileIsRemoved(t *testing.T) {
+	ws := NewWebServer()
+	ws.Config.AutoReversion = true
+	dir := t.TempDir()
+	baseTime := time.Unix(1700000000, 0)
+	for name, content := range map[string]string{
+		"index.html": `<script srcs="/ui/*.js"></script>`,
+		"ui/A.js":    `var a = 1;`,
+		"ui/B.js":    `var b = 1;`,
+	} {
+		filePath := filepath.Join(dir, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(filePath, baseTime, baseTime); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ws.ReplaceStaticFSExclusive("*", map[string]http.FileSystem{"/": http.Dir(dir)})
+	server := httptest.NewServer(&RouteHandler{ws: ws})
+	defer server.Close()
+
+	first, err := http.Get(server.URL + "/index.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstBody, _ := io.ReadAll(first.Body)
+	first.Body.Close()
+	lastModified := first.Header.Get("Last-Modified")
+	if !strings.Contains(string(firstBody), "/ui/B.js?v=") {
+		t.Fatalf("initial pattern did not include B.js: %s", firstBody)
+	}
+	if err := os.Remove(filepath.Join(dir, "ui", "B.js")); err != nil {
+		t.Fatal(err)
+	}
+	ws.assetGraph.scan()
+
+	request, _ := http.NewRequest(http.MethodGet, server.URL+"/index.html", nil)
+	request.Header.Set("If-Modified-Since", lastModified)
+	changed, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer changed.Body.Close()
+	changedBody, _ := io.ReadAll(changed.Body)
+	if changed.StatusCode != http.StatusOK || strings.Contains(string(changedBody), "/ui/B.js") {
+		t.Fatalf("removed match did not invalidate HTML: status=%d body=%s", changed.StatusCode, changedBody)
+	}
+}
+
 func TestAutoAssetReversionInvalidatesHTMLWhenDependencyChanges(t *testing.T) {
 	ws := NewWebServer()
 	ws.Config.AutoReversion = true

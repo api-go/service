@@ -90,6 +90,8 @@ func main() {
 
 启用 `AutoReversion` 时，框架会维护静态资源的双向依赖关系，并每 5 秒扫描一次已发现资源。依赖资源更新后，其修改时间会逐层传播为引用方的逻辑修改时间；静态应答的 `Last-Modified`、304 判断和资源版本号均使用该逻辑时间。正常请求只查询内存中的逻辑时间，不会临时遍历依赖树。
 
+HTML 可以使用 `<script srcs="/ui/frameworks/*.js,/ui/components/**/*.js"></script>` 和 `<link rel="stylesheet" hrefs="/ui/*.css">` 声明本地资源模式。AutoReversion 按模式书写顺序展开，单个模式内按路径稳定排序，自动去重，再为每个实际资源独立追加版本号。静态目录与 `http.FileSystem` 挂载会自动提供模式枚举；动态 HTML 可通过 `SetAssetPatternResolver` 提供枚举器。
+
 ## 配置指南 (ServiceConfig)
 
 详细配置项可查阅 `config.go` 中的 `ServiceConfig` 结构。通过 `config.Load` 支持从 `env.yml` 或环境变量加载。

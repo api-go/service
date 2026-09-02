@@ -7,11 +7,15 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
+	"os"
 	pathpkg "path"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gobwas/glob"
 )
 
 func isAssetTextType(contentType, name string) bool {
@@ -262,6 +266,129 @@ func (ws *WebServer) graphAssetModTime(namespace, assetPath string, loader asset
 	return time.Unix(ws.assetGraph.logicalTime(namespace, assetPath, physicalTime), 0), true
 }
 
+func (ws *WebServer) expandedHTMLAssetLoader(namespace, host, sourcePath string, loader assetGraphLoader) assetGraphLoader {
+	return func(assetPath string, readContent bool) ([]byte, int64, bool) {
+		if resolveAssetPath("/", assetPath) != resolveAssetPath("/", sourcePath) {
+			return loader(assetPath, readContent)
+		}
+		content, physicalTime, ok := loader(assetPath, true)
+		if !ok {
+			return nil, 0, false
+		}
+		expanded := ExpandAssetReferences(host, sourcePath, content, ws.expandAssetPattern)
+		fingerprint := strings.Builder{}
+		for _, reference := range collectAssetReferences(string(expanded)) {
+			dependencyPath, local := graphDependencyPath(sourcePath, reference)
+			if !local {
+				continue
+			}
+			if _, dependencyTime, found := loader(dependencyPath, false); found {
+				fingerprint.WriteString(dependencyPath)
+				fingerprint.WriteByte(0)
+				fingerprint.WriteString(strconv.FormatInt(dependencyTime, 10))
+				fingerprint.WriteByte(0)
+				if dependencyTime > physicalTime {
+					physicalTime = dependencyTime
+				}
+			}
+		}
+		physicalTime = ws.assetPatternModTime(namespace+"\x00"+sourcePath, fingerprint.String(), physicalTime)
+		if !readContent {
+			return nil, physicalTime, true
+		}
+		return expanded, physicalTime, true
+	}
+}
+
+func (ws *WebServer) assetPatternModTime(key, fingerprint string, physicalTime int64) int64 {
+	ws.assetPatternMu.Lock()
+	defer ws.assetPatternMu.Unlock()
+	previous, exists := ws.assetPatternStates[key]
+	if exists && previous.fingerprint != fingerprint && physicalTime <= previous.modTime {
+		physicalTime = previous.modTime + 1
+	}
+	if !exists || previous.fingerprint != fingerprint || physicalTime > previous.modTime {
+		ws.assetPatternStates[key] = assetPatternState{fingerprint: fingerprint, modTime: physicalTime}
+		return physicalTime
+	}
+	return previous.modTime
+}
+
+func (ws *WebServer) expandAssetPattern(host, sourcePath, pattern string) []string {
+	pattern = resolveAssetPath(sourcePath, pattern)
+	matcher, err := glob.Compile(pattern, '/')
+	if err != nil {
+		return nil
+	}
+	matches := make([]string, 0)
+	seen := map[string]bool{}
+	add := func(assetPath string) {
+		assetPath = resolveAssetPath("/", assetPath)
+		if !seen[assetPath] && matcher.Match(assetPath) {
+			seen[assetPath] = true
+			matches = append(matches, assetPath)
+		}
+	}
+	basePath := assetPatternBase(pattern)
+
+	for _, match := range ws.getStaticFSMatches(basePath, host) {
+		walkHTTPFileSystem(match.fileSystem, match.name, func(name string) {
+			add(pathpkg.Join("/", match.route, name))
+		})
+	}
+
+	if physicalBase := ws.getStaticFilePath(basePath, host); physicalBase != "" {
+		_ = filepath.Walk(physicalBase, func(filePath string, info os.FileInfo, walkErr error) error {
+			if walkErr != nil || info.IsDir() {
+				return nil
+			}
+			rel, relErr := filepath.Rel(physicalBase, filePath)
+			if relErr == nil {
+				add(pathpkg.Join(basePath, filepath.ToSlash(rel)))
+			}
+			return nil
+		})
+	}
+	sort.Strings(matches)
+	return matches
+}
+
+func assetPatternBase(pattern string) string {
+	if index := strings.IndexAny(pattern, "*?["); index >= 0 {
+		return pathpkg.Dir(pattern[:index])
+	}
+	return pattern
+}
+
+func walkHTTPFileSystem(source http.FileSystem, name string, visit func(string)) {
+	opened, err := source.Open(name)
+	if err != nil {
+		return
+	}
+	defer opened.Close()
+	info, err := opened.Stat()
+	if err != nil {
+		return
+	}
+	if !info.IsDir() {
+		visit(name)
+		return
+	}
+	entries, err := opened.Readdir(-1)
+	if err != nil {
+		return
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
+	for _, entry := range entries {
+		child := pathpkg.Join(name, entry.Name())
+		if entry.IsDir() {
+			walkHTTPFileSystem(source, child, visit)
+		} else {
+			visit(child)
+		}
+	}
+}
+
 func (ws *WebServer) findMatchedPathSorted(config []*staticType, requestPath string) string {
 	for _, rule := range config {
 		if strings.HasPrefix(requestPath, rule.path) {
@@ -323,6 +450,9 @@ func (ws *WebServer) processStatic(requestPath string, request *Request, respons
 	modTime := time.Unix(info.ModTime, 0)
 	assetNamespace := physicalAssetNamespace(request.Host)
 	assetLoader := ws.physicalAssetLoader(request.Host)
+	if strings.HasPrefix(contentType, "text/html") {
+		assetLoader = ws.expandedHTMLAssetLoader(assetNamespace, request.Host, assetSourcePath, assetLoader)
+	}
 	if ws.Config.AutoReversion {
 		ws.assetGraph.observe(assetNamespace, assetSourcePath, info.ModTime, assetLoader)
 		modTime = time.Unix(ws.assetGraph.logicalTime(assetNamespace, assetSourcePath, info.ModTime), 0)
@@ -357,7 +487,10 @@ func (ws *WebServer) processStatic(requestPath string, request *Request, respons
 			}
 		}
 		if ws.Config.AutoReversion && (strings.HasPrefix(contentType, "text/html") || strings.HasPrefix(contentType, "text/css")) {
-			data = RewriteAssetReferencesCached(request.Host, assetSourcePath, time.Unix(info.ModTime, 0), data, func(_ string, _ string, assetPath string) (time.Time, bool) {
+			if strings.HasPrefix(contentType, "text/html") {
+				data = ExpandAssetReferences(request.Host, assetSourcePath, data, ws.expandAssetPattern)
+			}
+			data = RewriteAssetReferences(request.Host, assetSourcePath, data, func(_ string, _ string, assetPath string) (time.Time, bool) {
 				return ws.graphAssetModTime(assetNamespace, assetPath, assetLoader)
 			})
 		}
@@ -423,6 +556,9 @@ func (ws *WebServer) processStaticFS(match staticFSMatch, request *Request, resp
 	}
 	assetNamespace := staticFSAssetNamespace(request.Host, match)
 	assetLoader := staticFSAssetLoader(match)
+	if strings.HasPrefix(contentType, "text/html") {
+		assetLoader = ws.expandedHTMLAssetLoader(assetNamespace, request.Host, assetSourcePath, assetLoader)
+	}
 	if (ws.webDevEnabled && strings.HasPrefix(contentType, "text/html")) || ((ws.Config.AutoReversion || ws.Config.AutoMinify) && isAssetTextType(contentType, name)) {
 		modTime := info.ModTime()
 		if ws.Config.AutoReversion {
@@ -449,7 +585,10 @@ func (ws *WebServer) processStaticFS(match staticFSMatch, request *Request, resp
 			}
 		}
 		if ws.Config.AutoReversion && (strings.HasPrefix(contentType, "text/html") || strings.HasPrefix(contentType, "text/css")) {
-			data = RewriteAssetReferencesCached(request.Host, assetSourcePath, info.ModTime(), data, func(_ string, _ string, assetPath string) (time.Time, bool) {
+			if strings.HasPrefix(contentType, "text/html") {
+				data = ExpandAssetReferences(request.Host, assetSourcePath, data, ws.expandAssetPattern)
+			}
+			data = RewriteAssetReferences(request.Host, assetSourcePath, data, func(_ string, _ string, assetPath string) (time.Time, bool) {
 				return ws.graphAssetModTime(assetNamespace, assetPath, assetLoader)
 			})
 		}

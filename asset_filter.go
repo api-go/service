@@ -34,6 +34,14 @@ func SetAssetVersionResolver(resolve AssetVersionResolver) {
 	DefaultServer.SetAssetVersionResolver(resolve)
 }
 
+func (ws *WebServer) SetAssetPatternResolver(resolve AssetPatternResolver) {
+	ws.assetPatternResolver = resolve
+}
+
+func SetAssetPatternResolver(resolve AssetPatternResolver) {
+	DefaultServer.SetAssetPatternResolver(resolve)
+}
+
 // EnableAssetReversion installs production HTML rewriting for dynamic outputs.
 func (ws *WebServer) EnableAssetReversion(resolve AssetVersionResolver) {
 	ws.assetResolver = resolve
@@ -56,6 +64,9 @@ func (ws *WebServer) EnableAssetReversion(resolve AssetVersionResolver) {
 		mediaType, _, _ := mime.ParseMediaType(contentType)
 		mediaType = strings.ToLower(mediaType)
 		if ws.Config.AutoReversion && ws.assetResolver != nil && (mediaType == "text/html" || mediaType == "text/css") {
+			if mediaType == "text/html" && ws.assetPatternResolver != nil {
+				content = ExpandAssetReferences(request.Host, request.URL.Path, content, ws.assetPatternResolver)
+			}
 			content = rewriteAssetReferences(request.Host, request.URL.Path, content, ws.assetResolver, mediaType == "text/css")
 		}
 		if !bytes.Equal(original, content) {
