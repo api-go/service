@@ -572,6 +572,12 @@ func (ws *WebServer) handleClientKeys(request *Request, response *Response) {
 		sessionId := request.Header().Get(ws.usedSessionIdKey)
 		if sessionId != "" {
 			hasRequestSessionId = true
+			if !ws.Config.SessionWithoutCookie {
+				cookie := request.GetCookie(ws.usedSessionIdKey)
+				if cookie == nil || cookie.Value != sessionId {
+					http.SetCookie(response.Writer, &http.Cookie{Name: ws.usedSessionIdKey, Value: sessionId, Path: "/", HttpOnly: true})
+				}
+			}
 		} else if !ws.Config.SessionWithoutCookie {
 			if ck := request.GetCookie(ws.usedSessionIdKey); ck != nil {
 				sessionId = ck.Value
@@ -604,6 +610,12 @@ func (ws *WebServer) handleClientKeys(request *Request, response *Response) {
 		deviceId := request.Header().Get(ws.usedDeviceIdKey)
 		if deviceId != "" {
 			hasRequestDeviceId = true
+			if !ws.Config.DeviceWithoutCookie {
+				cookie := request.GetCookie(ws.usedDeviceIdKey)
+				if cookie == nil || cookie.Value != deviceId {
+					http.SetCookie(response.Writer, &http.Cookie{Name: ws.usedDeviceIdKey, Value: deviceId, Path: "/", Expires: time.Now().AddDate(10, 0, 0), HttpOnly: true})
+				}
+			}
 		} else if !ws.Config.DeviceWithoutCookie {
 			if ck := request.GetCookie(ws.usedDeviceIdKey); ck != nil {
 				deviceId = ck.Value

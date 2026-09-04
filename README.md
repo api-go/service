@@ -48,6 +48,7 @@ service.Host("*").WebSocket("/ws", func(conn *websocket.Conn, logger *log.Logger
 - **获取会话**: 在服务方法中注入 `*service.Session` 参数。
 - **自动鉴权**: 如果未设置自定义 `AuthChecker`，框架将自动检查 Session 中的 `_authLevel` 是否满足接口要求。
 - **权限校验**: `session.AuthFuncs("func1", "&func2")` 支持 OR 和 AND 逻辑的权限细粒度校验。
+- **客户端标识一致性**: 启用 Cookie 时，请求头携带的 Session ID 或 Device ID 为当前客户端标识；当对应 Cookie 缺失或不一致时，框架会同步写入 HttpOnly Cookie，使 Fetch 请求与页面导航使用同一身份。
 
 ```go
 service.Host("*").POST("/login", func(s *service.Session, in LoginArgs) string {

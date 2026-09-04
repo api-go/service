@@ -1,5 +1,11 @@
 # Service Module Test Report
 
+## v1.5.34 验证
+- `TestClientKeyHeadersSynchronizeCookies` 验证请求头中的 Session ID 与 Device ID 会覆盖不同值的 HttpOnly Cookie。
+- `TestClientKeyHeadersDoNotRewriteMatchingCookies` 验证请求头与 Cookie 相同时不重复写入应答 Cookie。
+- `go test -v ./...` 与 `go test -bench=. ./...` 通过；`BenchmarkRouting`: **2471 ns/op**（Darwin / Apple M3 Max）。
+- `git diff --check` 通过。
+
 ## v1.5.33 验证
 - `TestExpandAssetReferencesPreservesPatternOrderAndDeduplicates` 验证 `srcs`、`hrefs` 按模式顺序展开并去重。
 - `TestAutoAssetReversionExpandsStaticPatterns` 验证静态 HTML 递归模式展开、稳定顺序与逐文件版本号。

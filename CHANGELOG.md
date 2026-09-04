@@ -1,5 +1,9 @@
 # CHANGELOG - go/service
 
+## v1.5.34 (2026-09-04)
+- **客户端标识一致性**: 启用 Cookie 时，将请求头中有效的 Session ID 与 Device ID 同步到缺失或不一致的 HttpOnly Cookie，避免 Fetch 请求与页面导航选择不同身份。
+- **回归测试**: 覆盖客户端标识 Cookie 的同步与相同值不重复写入场景。
+
 ## v1.5.33 (2026-09-03)
 - **资源模式展开**: AutoReversion 支持在 HTML 中将 `script[srcs]` 与 `link[hrefs]` 展开为有序、去重且独立版本化的本地资源引用。
 - **资源失效追踪**: 匹配文件新增或删除后推进引用 HTML 的逻辑修改时间并刷新展开结果。
