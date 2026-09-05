@@ -1,5 +1,8 @@
 # CHANGELOG - go/service
 
+## v1.5.35 (2026-09-05)
+- **依赖对齐**: 升级全部 `apigo.cc/go/*` 依赖至当前已发布版本。
+
 ## v1.5.34 (2026-09-04)
 - **客户端标识一致性**: 启用 Cookie 时，将请求头中有效的 Session ID 与 Device ID 同步到缺失或不一致的 HttpOnly Cookie，避免 Fetch 请求与页面导航选择不同身份。
 - **回归测试**: 覆盖客户端标识 Cookie 的同步与相同值不重复写入场景。

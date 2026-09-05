@@ -1,6 +1,6 @@
 # Service Module Test Report
 
-## v1.5.34 验证
+## v1.5.35 验证
 - `TestClientKeyHeadersSynchronizeCookies` 验证请求头中的 Session ID 与 Device ID 会覆盖不同值的 HttpOnly Cookie。
 - `TestClientKeyHeadersDoNotRewriteMatchingCookies` 验证请求头与 Cookie 相同时不重复写入应答 Cookie。
 - `go test -v ./...` 与 `go test -bench=. ./...` 通过；`BenchmarkRouting`: **2471 ns/op**（Darwin / Apple M3 Max）。
