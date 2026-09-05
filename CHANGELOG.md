@@ -1,5 +1,8 @@
 # CHANGELOG - go/service
 
+## v1.5.36 (2026-09-05)
+- **依赖对齐**: 补齐 `discover`、`http`、`redis`、`starter`、`watch` 等级联版本。
+
 ## v1.5.35 (2026-09-05)
 - **依赖对齐**: 升级全部 `apigo.cc/go/*` 依赖至当前已发布版本。
 
