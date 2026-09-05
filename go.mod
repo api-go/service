@@ -3,21 +3,21 @@ module apigo.cc/go/service
 go 1.25.0
 
 require (
-	apigo.cc/go/cast v1.5.6
-	apigo.cc/go/config v1.5.6
-	apigo.cc/go/crypto v1.5.6
-	apigo.cc/go/discover v1.5.12
-	apigo.cc/go/encoding v1.5.7
-	apigo.cc/go/file v1.5.8
-	apigo.cc/go/http v1.5.7
-	apigo.cc/go/id v1.5.8
+	apigo.cc/go/cast v1.5.7
+	apigo.cc/go/config v1.5.7
+	apigo.cc/go/crypto v1.5.7
+	apigo.cc/go/discover v1.5.13
+	apigo.cc/go/encoding v1.5.8
+	apigo.cc/go/file v1.5.9
+	apigo.cc/go/http v1.5.8
+	apigo.cc/go/id v1.5.9
 	apigo.cc/go/jsmod v1.5.4
-	apigo.cc/go/log v1.5.13
-	apigo.cc/go/redis v1.5.16
+	apigo.cc/go/log v1.5.14
+	apigo.cc/go/redis v1.5.17
 	apigo.cc/go/safe v1.5.4
-	apigo.cc/go/starter v1.5.8
+	apigo.cc/go/starter v1.5.9
 	apigo.cc/go/timer v1.5.0
-	apigo.cc/go/watch v1.5.8
+	apigo.cc/go/watch v1.5.9
 	github.com/gobwas/glob v0.2.3
 	github.com/gorilla/websocket v1.5.3
 	github.com/tdewolff/minify/v2 v2.24.17
