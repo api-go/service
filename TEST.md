@@ -1,5 +1,10 @@
 # Service Module Test Report
 
+## v1.5.38 验证
+- 动态监听覆盖运行时新增、移除、复用未变化端口，以及新增端口绑定失败时保留原监听集合。
+- `TestWebServerTLSCertificateReloadAppliesToNewConnections` 通过真实 TLS 握手验证证书续期立即作用于新连接，并验证无效证书不会替换上一份有效证书。
+- `go test -v ./...`、`go test -race ./...`、`go test -bench=. ./...` 与 `git diff --check` 通过；`BenchmarkRouting`: **2555 ns/op**（Darwin / Apple M3 Max）。
+
 ## v1.5.36 验证
 - `TestClientKeyHeadersSynchronizeCookies` 验证请求头中的 Session ID 与 Device ID 会覆盖不同值的 HttpOnly Cookie。
 - `TestClientKeyHeadersDoNotRewriteMatchingCookies` 验证请求头与 Cookie 相同时不重复写入应答 Cookie。

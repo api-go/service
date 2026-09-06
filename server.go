@@ -46,6 +46,10 @@ type WebServer struct {
 	useDiscover     bool
 	discoverStarted bool
 	logger          *log.Logger
+	lifecycleMu     sync.Mutex
+	tlsMu           sync.RWMutex
+	tlsCertificates map[string]*tls.Certificate
+	tlsFallback     *tls.Certificate
 
 	// 运行时状态
 	serverId   string
@@ -347,6 +351,8 @@ func (ws *WebServer) rebuildStaticsUnderLock(host string) {
 
 // Start 启动服务，实现 starter.Service 接口
 func (ws *WebServer) Start(ctx context.Context, logger *log.Logger) error {
+	ws.lifecycleMu.Lock()
+	defer ws.lifecycleMu.Unlock()
 	if logger == nil {
 		logger = log.DefaultLogger
 	}
@@ -516,20 +522,40 @@ func parseListenConfigs(value string) ([]listenConfig, error) {
 
 func (ws *WebServer) openListeners(configs []listenConfig) error {
 	ws.closeListeners()
+	listeners, servers, addrs, err := ws.createListeners(configs)
+	if err != nil {
+		return err
+	}
+	ws.listeners = listeners
+	ws.servers = servers
+	ws.Addrs = addrs
+	ws.listenConfigs = append([]listenConfig(nil), configs...)
+	return nil
+}
+
+func (ws *WebServer) createListeners(configs []listenConfig) ([]net.Listener, []*http.Server, []string, error) {
+	listeners := make([]net.Listener, 0, len(configs))
+	servers := make([]*http.Server, 0, len(configs))
+	addrs := make([]string, 0, len(configs))
+	closeCreated := func() {
+		for _, listener := range listeners {
+			_ = listener.Close()
+		}
+	}
 	var tlsConf *tls.Config
 	for _, config := range configs {
 		listener, err := net.Listen("tcp", config.addr)
 		if err != nil {
-			ws.closeListeners()
-			return fmt.Errorf("failed to listen on %s: %w", config.addr, err)
+			closeCreated()
+			return nil, nil, nil, fmt.Errorf("failed to listen on %s: %w", config.addr, err)
 		}
 		if config.protocol == "https" || config.protocol == "h2" {
 			if tlsConf == nil {
 				tlsConf, err = ws.tlsConfig()
 				if err != nil {
 					_ = listener.Close()
-					ws.closeListeners()
-					return err
+					closeCreated()
+					return nil, nil, nil, err
 				}
 			}
 			listener = tls.NewListener(listener, tlsConf)
@@ -539,11 +565,149 @@ func (ws *WebServer) openListeners(configs []listenConfig) error {
 			handler = h2c.NewHandler(handler, &http2.Server{})
 		}
 		server := &http.Server{Handler: handler, ReadTimeout: time.Duration(ws.Config.ReadTimeout) * time.Millisecond, ReadHeaderTimeout: time.Duration(ws.Config.ReadHeaderTimeout) * time.Millisecond, WriteTimeout: time.Duration(ws.Config.WriteTimeout) * time.Millisecond, IdleTimeout: time.Duration(ws.Config.IdleTimeout) * time.Millisecond, MaxHeaderBytes: ws.Config.MaxHeaderBytes}
-		ws.listeners = append(ws.listeners, listener)
-		ws.servers = append(ws.servers, server)
-		ws.Addrs = append(ws.Addrs, listener.Addr().String())
+		listeners = append(listeners, listener)
+		servers = append(servers, server)
+		addrs = append(addrs, listener.Addr().String())
 	}
+	return listeners, servers, addrs, nil
+}
+
+func listenConfigKey(config listenConfig) string {
+	return config.protocol + "\x00" + config.addr
+}
+
+func cloneServiceConfig(config ServiceConfig) ServiceConfig {
+	cloned := config
+	cloned.Calls = make(map[string]CallConfig, len(config.Calls))
+	for name, call := range config.Calls {
+		cloned.Calls[name] = call
+	}
+	cloned.SSL = make(map[string]*CertSet, len(config.SSL))
+	for host, certificate := range config.SSL {
+		if certificate == nil {
+			cloned.SSL[host] = nil
+			continue
+		}
+		copied := *certificate
+		cloned.SSL[host] = &copied
+	}
+	cloned.AccessTokens = make(map[string]*int, len(config.AccessTokens))
+	for token, level := range config.AccessTokens {
+		if level == nil {
+			cloned.AccessTokens[token] = nil
+			continue
+		}
+		copied := *level
+		cloned.AccessTokens[token] = &copied
+	}
+	cloned.Proxies = cloneNestedAnyMap(config.Proxies)
+	cloned.Rewrites = cloneNestedAnyMap(config.Rewrites)
+	cloned.Statics = make(map[string]map[string]string, len(config.Statics))
+	for host, values := range config.Statics {
+		copied := make(map[string]string, len(values))
+		for key, value := range values {
+			copied[key] = value
+		}
+		cloned.Statics[host] = copied
+	}
+	cloned.IndexFiles = append([]string(nil), config.IndexFiles...)
+	return cloned
+}
+
+func cloneNestedAnyMap(values map[string]map[string]any) map[string]map[string]any {
+	cloned := make(map[string]map[string]any, len(values))
+	for group, entries := range values {
+		copied := make(map[string]any, len(entries))
+		for key, value := range entries {
+			copied[key] = value
+		}
+		cloned[group] = copied
+	}
+	return cloned
+}
+
+func (ws *WebServer) reconcileListeners(configs []listenConfig) error {
+	if !ws.running {
+		return nil
+	}
+
+	existing := make(map[string]int, len(ws.listenConfigs))
+	for index, config := range ws.listenConfigs {
+		existing[listenConfigKey(config)] = index
+	}
+
+	var additions []listenConfig
+	for _, config := range configs {
+		if _, ok := existing[listenConfigKey(config)]; !ok {
+			additions = append(additions, config)
+		}
+	}
+	newListeners, newServers, newAddrs, err := ws.createListeners(additions)
+	if err != nil {
+		return err
+	}
+
+	for index, server := range newServers {
+		listener := newListeners[index]
+		config := additions[index]
+		ws.logger.Info("starting listener", "addr", newAddrs[index], "proto", config.protocol)
+		go func() {
+			if serveErr := server.Serve(listener); serveErr != nil && serveErr != http.ErrServerClosed {
+				ws.logger.Error("listener stopped", "addr", listener.Addr().String(), "error", serveErr.Error())
+			}
+		}()
+	}
+
+	added := make(map[string]int, len(additions))
+	for index, config := range additions {
+		added[listenConfigKey(config)] = index
+	}
+	nextListeners := make([]net.Listener, 0, len(configs))
+	nextServers := make([]*http.Server, 0, len(configs))
+	nextAddrs := make([]string, 0, len(configs))
+	retained := make(map[int]bool, len(configs))
+	for _, config := range configs {
+		key := listenConfigKey(config)
+		if index, ok := existing[key]; ok {
+			retained[index] = true
+			nextListeners = append(nextListeners, ws.listeners[index])
+			nextServers = append(nextServers, ws.servers[index])
+			nextAddrs = append(nextAddrs, ws.Addrs[index])
+			continue
+		}
+		index := added[key]
+		nextListeners = append(nextListeners, newListeners[index])
+		nextServers = append(nextServers, newServers[index])
+		nextAddrs = append(nextAddrs, newAddrs[index])
+	}
+
+	removed := make([]*http.Server, 0)
+	for index, server := range ws.servers {
+		if !retained[index] {
+			removed = append(removed, server)
+		}
+	}
+	ws.listeners = nextListeners
+	ws.servers = nextServers
+	ws.Addrs = nextAddrs
 	ws.listenConfigs = append([]listenConfig(nil), configs...)
+	ws.listener, ws.server, ws.Addr, ws.serverAddr = ws.listeners[0], ws.servers[0], ws.Addrs[0], ws.Addrs[0]
+
+	if len(removed) > 0 {
+		timeout := time.Duration(ws.Config.StopTimeout) * time.Millisecond
+		if timeout <= 0 {
+			timeout = 5 * time.Second
+		}
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
+			defer cancel()
+			for _, server := range removed {
+				if shutdownErr := server.Shutdown(ctx); shutdownErr != nil {
+					ws.logger.Warning("listener drain failed", "error", shutdownErr.Error())
+				}
+			}
+		}()
+	}
 	return nil
 }
 
@@ -559,6 +723,9 @@ func (ws *WebServer) closeListeners() {
 
 // Stop 停止服务，实现 starter.Service 接口
 func (ws *WebServer) Stop(ctx context.Context) error {
+	ws.lifecycleMu.Lock()
+	defer ws.lifecycleMu.Unlock()
+
 	ws.running = false
 	ws.assetGraph.stop()
 
@@ -580,8 +747,11 @@ func (ws *WebServer) Stop(ctx context.Context) error {
 			shutdownErrors = append(shutdownErrors, err)
 		}
 	}
+	if err := errors.Join(shutdownErrors...); err != nil {
+		return err
+	}
 	ws.closeListeners()
-	return errors.Join(shutdownErrors...)
+	return nil
 }
 
 // Status 检查服务健康状态，实现 starter.Service 接口
@@ -594,14 +764,48 @@ func (ws *WebServer) Status() (string, error) {
 
 // Reload 实现配置重新加载，实现 starter.Reloader 接口
 func (ws *WebServer) Reload() error {
+	ws.lifecycleMu.Lock()
+	defer ws.lifecycleMu.Unlock()
+
 	logger := ws.logger
 	if logger == nil {
 		logger = log.DefaultLogger
 	}
 	logger.Info("reloading configurations...")
 
-	if err := config.Load(&ws.Config, "service"); err != nil {
-		logger.Error("failed to load config during reload", "error", err.Error())
+	previousConfig := cloneServiceConfig(ws.Config)
+	previousCertificates, previousFallback := ws.tlsCertificates, ws.tlsFallback
+	nextConfig := cloneServiceConfig(previousConfig)
+	if err := config.Load(&nextConfig, "service"); err != nil {
+		return fmt.Errorf("load service config: %w", err)
+	}
+	ws.Config = nextConfig
+	listenStr := strings.TrimSpace(ws.Config.Listen)
+	configs := append([]listenConfig(nil), ws.listenConfigs...)
+	if listenStr != "" {
+		var err error
+		configs, err = parseListenConfigs(listenStr)
+		if err != nil {
+			ws.Config = previousConfig
+			return err
+		}
+	}
+	usesTLS := len(ws.Config.SSL) > 0
+	for _, listenerConfig := range configs {
+		usesTLS = usesTLS || listenerConfig.protocol == "https" || listenerConfig.protocol == "h2"
+	}
+	if usesTLS {
+		if err := ws.reloadTLSCertificates(); err != nil {
+			ws.Config = previousConfig
+			return err
+		}
+	}
+	if err := ws.reconcileListeners(configs); err != nil {
+		ws.Config = previousConfig
+		ws.tlsMu.Lock()
+		ws.tlsCertificates, ws.tlsFallback = previousCertificates, previousFallback
+		ws.tlsMu.Unlock()
+		return err
 	}
 	ws.ApplyConfig()
 

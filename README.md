@@ -4,6 +4,7 @@
 
 ## 核心特性
 - **极致精简**: 剥离非核心组件（如 Starter, Task, 业务 Result 定义），保持底座纯净。
+- **运行时重载**: `WebServer.Reload` 可原子调整 HTTP、HTTPS、HTTP/2、H2C 监听，并让新 TLS 握手立即使用更新后的证书；配置验证或端口绑定失败时保留当前服务。
 - **零配置启动**: 默认监听随机端口并启用 `h2c` 协议，自动完成 `discover` 注册，实现真正的 "Zero-Config" 微服务。
 - **智能探测**: 自动识别应用名称 (`ReadBuildInfo`) 与局域网 IP，消除环境摩擦。
 - **路由反射**: 自动解析函数参数，支持 `*Request`, `*Response`, `*log.Logger` 及自定义结构体自动注入。

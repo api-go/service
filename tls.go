@@ -100,12 +100,25 @@ func loadCertificate(set *CertSet) (tls.Certificate, error) {
 }
 
 func (ws *WebServer) tlsConfig() (*tls.Config, error) {
+	if err := ws.reloadTLSCertificates(); err != nil {
+		return nil, err
+	}
+	return &tls.Config{
+		MinVersion: tls.VersionTLS12,
+		NextProtos: []string{"h2", "http/1.1"},
+		GetCertificate: func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
+			return ws.certificateForServerName(info.ServerName)
+		},
+	}, nil
+}
+
+func (ws *WebServer) reloadTLSCertificates() error {
 	certificates := map[string]*tls.Certificate{}
 	var fallback *tls.Certificate
 	for host, set := range ws.Config.SSL {
 		certificate, err := loadCertificate(set)
 		if err != nil {
-			return nil, fmt.Errorf("load TLS certificate for %q: %w", host, err)
+			return fmt.Errorf("load TLS certificate for %q: %w", host, err)
 		}
 		certificates[strings.ToLower(strings.TrimSpace(host))] = &certificate
 		if host == "*" {
@@ -115,26 +128,33 @@ func (ws *WebServer) tlsConfig() (*tls.Config, error) {
 	if fallback == nil {
 		certificate, err := ws.loadOrCreateAutoCertificate()
 		if err != nil {
-			return nil, err
+			return err
 		}
 		fallback = &certificate
 	}
-	return &tls.Config{
-		MinVersion: tls.VersionTLS12,
-		NextProtos: []string{"h2", "http/1.1"},
-		GetCertificate: func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
-			host := strings.ToLower(strings.TrimSuffix(info.ServerName, "."))
-			if certificate := certificates[host]; certificate != nil {
-				return certificate, nil
-			}
-			for pattern, certificate := range certificates {
-				if strings.HasPrefix(pattern, "*.") && strings.HasSuffix(host, pattern[1:]) {
-					return certificate, nil
-				}
-			}
-			return fallback, nil
-		},
-	}, nil
+	ws.tlsMu.Lock()
+	ws.tlsCertificates = certificates
+	ws.tlsFallback = fallback
+	ws.tlsMu.Unlock()
+	return nil
+}
+
+func (ws *WebServer) certificateForServerName(serverName string) (*tls.Certificate, error) {
+	host := strings.ToLower(strings.TrimSuffix(serverName, "."))
+	ws.tlsMu.RLock()
+	defer ws.tlsMu.RUnlock()
+	if certificate := ws.tlsCertificates[host]; certificate != nil {
+		return certificate, nil
+	}
+	for pattern, certificate := range ws.tlsCertificates {
+		if strings.HasPrefix(pattern, "*.") && strings.HasSuffix(host, pattern[1:]) {
+			return certificate, nil
+		}
+	}
+	if ws.tlsFallback == nil {
+		return nil, fmt.Errorf("TLS certificate is unavailable")
+	}
+	return ws.tlsFallback, nil
 }
 
 func (ws *WebServer) loadOrCreateAutoCertificate() (tls.Certificate, error) {
