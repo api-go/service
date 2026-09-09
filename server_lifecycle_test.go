@@ -9,12 +9,13 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
-	"errors"
 	"math/big"
 	"net"
 	"net/http"
 	"testing"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 func testCertificate(t *testing.T, serial int64) (string, string) {
@@ -53,7 +54,7 @@ func peerCertificateSerial(t *testing.T, addr string) int64 {
 	return conn.ConnectionState().PeerCertificates[0].SerialNumber.Int64()
 }
 
-func TestWebServerStopContinuesWaitingAfterTimeout(t *testing.T) {
+func TestWebServerStopForceClosesAfterTimeout(t *testing.T) {
 	started := make(chan struct{})
 	release := make(chan struct{})
 	server := &http.Server{Handler: http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
@@ -73,24 +74,112 @@ func TestWebServerStopContinuesWaitingAfterTimeout(t *testing.T) {
 	go func() { _, _ = http.Get("http://" + listener.Addr().String()) }()
 	<-started
 
-	firstCtx, firstCancel := context.WithCancel(context.Background())
-	firstCancel()
-	if err = ws.Stop(firstCtx); !errors.Is(err, context.Canceled) {
-		t.Fatalf("first Stop error = %v, want context canceled", err)
+	stopCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err = ws.Stop(stopCtx); err != nil {
+		t.Fatalf("Stop did not recover by force-closing active requests: %v", err)
 	}
-
-	secondDone := make(chan error, 1)
-	go func() { secondDone <- ws.Stop(context.Background()) }()
-	select {
-	case err = <-secondDone:
-		t.Fatalf("second Stop returned before request finished: %v", err)
-	default:
-	}
-
 	close(release)
-	if err = <-secondDone; err != nil {
-		t.Fatalf("second Stop error = %v", err)
+}
+
+func TestWebServerStopCancelsRequestLifecycle(t *testing.T) {
+	requestStarted := make(chan struct{})
+	requestStopped := make(chan struct{})
+	ws := NewWebServer()
+	ws.Config.Listen = "127.0.0.1:0,http"
+	ws.Register(http.MethodGet, "/events", func(request *Request) any {
+		close(requestStarted)
+		<-request.Context().Done()
+		close(requestStopped)
+		return nil
+	})
+	if err := ws.Start(context.Background(), nil); err != nil {
+		t.Fatal(err)
 	}
+	go func() { _, _ = http.Get("http://" + ws.Addrs[0] + "/events") }()
+	select {
+	case <-requestStarted:
+	case <-time.After(time.Second):
+		t.Fatal("request did not start")
+	}
+
+	stopCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := ws.Stop(stopCtx); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-requestStopped:
+	case <-time.After(time.Second):
+		t.Fatal("request context was not cancelled during Stop")
+	}
+}
+
+func TestWebServerStopNotifiesWebSocketAndWaitsForHandler(t *testing.T) {
+	handlerStopped := make(chan struct{})
+	ws := NewWebServer()
+	ws.Config.Listen = "127.0.0.1:0,http"
+	ws.RegisterWebsocket("/ws", func(conn *WebSocketConn) {
+		defer close(handlerStopped)
+		_, _ = conn.ReadString()
+	})
+	if err := ws.Start(context.Background(), nil); err != nil {
+		t.Fatal(err)
+	}
+	conn, _, err := websocket.DefaultDialer.Dial("ws://"+ws.Addrs[0]+"/ws", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	clientStopped := make(chan error, 1)
+	go func() {
+		_, _, readErr := conn.ReadMessage()
+		clientStopped <- readErr
+	}()
+
+	stopCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err = ws.Stop(stopCtx); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-handlerStopped:
+	case <-time.After(time.Second):
+		t.Fatal("websocket handler did not stop after close notification")
+	}
+	if err = <-clientStopped; !websocket.IsCloseError(err, websocket.CloseGoingAway) {
+		t.Fatalf("client close error = %v, want close going away", err)
+	}
+}
+
+func TestWebServerStopForceClosesUnresponsiveWebSocket(t *testing.T) {
+	handlerStarted := make(chan struct{})
+	releaseHandler := make(chan struct{})
+	ws := NewWebServer()
+	ws.Config.Listen = "127.0.0.1:0,http"
+	ws.RegisterWebsocket("/ws", func() {
+		close(handlerStarted)
+		<-releaseHandler
+	})
+	if err := ws.Start(context.Background(), nil); err != nil {
+		t.Fatal(err)
+	}
+	conn, _, err := websocket.DefaultDialer.Dial("ws://"+ws.Addrs[0]+"/ws", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	<-handlerStarted
+
+	stopCtx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	if err = ws.Stop(stopCtx); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err = conn.ReadMessage(); err == nil {
+		t.Fatal("websocket remained open after shutdown deadline")
+	}
+	close(releaseHandler)
 }
 
 func TestWebServerReconcileListenersAddsAndRemoves(t *testing.T) {

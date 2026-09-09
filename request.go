@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/textproto"
 	"net/url"
+	"strings"
 )
 
 // UploadFile 上传文件结构
@@ -60,9 +61,10 @@ func (h *Header) Values(key string) []string {
 
 // Request 封装 http.Request
 type Request struct {
-	*http.Request `js:"-"`
-	contextValues map[string]any `js:"-"`
-	Id            string
+	*http.Request      `js:"-"`
+	contextValues      map[string]any `js:"-"`
+	trustProxyClientIP bool           `js:"-"`
+	Id                 string
 }
 
 // Cookie 简化的 JS 友好 Cookie 结构
@@ -203,16 +205,34 @@ func (r *Request) SetUserId(userId string) {
 
 // ClientIp 获取真实 IP
 func (r *Request) ClientIp() string {
-	ip := r.Header().Get(discover.HeaderClientIp)
-	if ip == "" {
-		ip = r.Header().Get(discover.HeaderForwardedFor)
-	}
-	if ip == "" {
-		host, _, err := net.SplitHostPort(r.RemoteAddr)
-		if err == nil {
-			return host
+	if r.trustProxyClientIP {
+		for _, value := range []string{
+			r.Header().Get("X-Real-IP"),
+			r.Header().Get(discover.HeaderClientIp),
+		} {
+			if ip := normalizedClientIP(value); ip != "" {
+				return ip
+			}
 		}
-		return r.RemoteAddr
+		for _, value := range strings.Split(r.Header().Get(discover.HeaderForwardedFor), ",") {
+			if ip := normalizedClientIP(value); ip != "" {
+				return ip
+			}
+		}
 	}
-	return ip
+	return normalizedClientIP(r.RemoteAddr)
+}
+
+func normalizedClientIP(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	if host, _, err := net.SplitHostPort(value); err == nil {
+		value = host
+	}
+	if ip := net.ParseIP(strings.Trim(value, "[]")); ip != nil {
+		return ip.String()
+	}
+	return ""
 }

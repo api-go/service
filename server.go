@@ -47,6 +47,8 @@ type WebServer struct {
 	discoverStarted bool
 	logger          *log.Logger
 	lifecycleMu     sync.Mutex
+	lifecycleCtx    context.Context
+	lifecycleCancel context.CancelFunc
 	tlsMu           sync.RWMutex
 	tlsCertificates map[string]*tls.Certificate
 	tlsFallback     *tls.Certificate
@@ -66,6 +68,10 @@ type WebServer struct {
 	websocketServices     map[string]map[string]*websocketServiceType
 	websocketServicesLock sync.RWMutex
 	websocketServicesList []*websocketServiceType
+	websocketConns        map[*WebSocketConn]struct{}
+	websocketConnsLock    sync.Mutex
+	websocketConnsChanged chan struct{}
+	websocketStopping     bool
 
 	// 路由策略 (按 Host 隔离)
 	hostRewrites map[string][]*rewriteType
@@ -157,6 +163,8 @@ func NewWebServer() *WebServer {
 		webServicesList:       make([]*webServiceType, 0),
 		websocketServices:     make(map[string]map[string]*websocketServiceType),
 		websocketServicesList: make([]*websocketServiceType, 0),
+		websocketConns:        make(map[*WebSocketConn]struct{}),
+		websocketConnsChanged: make(chan struct{}),
 		hostRewrites:          make(map[string][]*rewriteType),
 		hostProxies:           make(map[string][]*proxyType),
 		codeProxies:           make(map[string][]*proxyType),
@@ -353,6 +361,16 @@ func (ws *WebServer) rebuildStaticsUnderLock(host string) {
 func (ws *WebServer) Start(ctx context.Context, logger *log.Logger) error {
 	ws.lifecycleMu.Lock()
 	defer ws.lifecycleMu.Unlock()
+	if ws.lifecycleCancel != nil {
+		ws.lifecycleCancel()
+	}
+	// The starter context passed to Start is bounded by the startup timeout and
+	// is cancelled as soon as Start returns. Requests instead share a dedicated
+	// service-lifetime context which Stop cancels before graceful shutdown.
+	ws.lifecycleCtx, ws.lifecycleCancel = context.WithCancel(context.Background())
+	ws.websocketConnsLock.Lock()
+	ws.websocketStopping = false
+	ws.websocketConnsLock.Unlock()
 	if logger == nil {
 		logger = log.DefaultLogger
 	}
@@ -565,6 +583,10 @@ func (ws *WebServer) createListeners(configs []listenConfig) ([]net.Listener, []
 			handler = h2c.NewHandler(handler, &http2.Server{})
 		}
 		server := &http.Server{Handler: handler, ReadTimeout: time.Duration(ws.Config.ReadTimeout) * time.Millisecond, ReadHeaderTimeout: time.Duration(ws.Config.ReadHeaderTimeout) * time.Millisecond, WriteTimeout: time.Duration(ws.Config.WriteTimeout) * time.Millisecond, IdleTimeout: time.Duration(ws.Config.IdleTimeout) * time.Millisecond, MaxHeaderBytes: ws.Config.MaxHeaderBytes}
+		if ws.lifecycleCtx != nil {
+			lifecycleCtx := ws.lifecycleCtx
+			server.BaseContext = func(net.Listener) context.Context { return lifecycleCtx }
+		}
 		listeners = append(listeners, listener)
 		servers = append(servers, server)
 		addrs = append(addrs, listener.Addr().String())
@@ -728,6 +750,12 @@ func (ws *WebServer) Stop(ctx context.Context) error {
 
 	ws.running = false
 	ws.assetGraph.stop()
+	if ws.lifecycleCancel != nil {
+		ws.lifecycleCancel()
+		ws.lifecycleCancel = nil
+		ws.lifecycleCtx = nil
+	}
+	ws.beginWebSocketShutdown(ctx)
 
 	// 执行停机钩子 (反序)
 	ws.shutdownHooksLock.Lock()
@@ -744,8 +772,19 @@ func (ws *WebServer) Stop(ctx context.Context) error {
 	var shutdownErrors []error
 	for _, server := range ws.servers {
 		if err := server.Shutdown(ctx); err != nil {
-			shutdownErrors = append(shutdownErrors, err)
+			// Shutdown deliberately leaves active connections open. Once its
+			// deadline is reached, force-close them so callers can complete the
+			// service lifecycle instead of retrying Stop forever.
+			closeErr := server.Close()
+			if closeErr != nil && !errors.Is(closeErr, http.ErrServerClosed) {
+				shutdownErrors = append(shutdownErrors, errors.Join(err, closeErr))
+			} else if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+				shutdownErrors = append(shutdownErrors, err)
+			}
 		}
+	}
+	if !ws.waitForWebSockets(ctx) {
+		ws.closeWebSockets()
 	}
 	if err := errors.Join(shutdownErrors...); err != nil {
 		return err

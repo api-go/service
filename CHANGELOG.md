@@ -1,5 +1,10 @@
 # CHANGELOG - go/service
 
+## v1.5.39 (2026-09-09)
+- **长连接停机**: HTTP 请求继承独立的服务生命周期 Context；`Stop` 会先取消 SSE 等长连接，优雅停机超时后强制关闭残余连接，避免服务管理器无限重试。
+- **WebSocket 停机**: 自动登记升级后的连接；停止服务时发送 `1001 Going Away` 关闭通知并等待处理器收尾，总超时后强制断开，停止期间拒绝新连接。
+- **真实 IP 防伪**: `Request.ClientIp()` 统一优先读取 `X-Real-IP`，兼容旧 `X-Client-Ip`，正确解析 `X-Forwarded-For` 首个合法地址；默认仅在请求进入服务前已有 Request ID 时信任代理头，`AcceptXRealIpWithoutRequestId` 可显式允许没有 Request ID 的入口接受代理头。
+
 ## v1.5.38 (2026-09-06)
 - **动态监听**: Reload 会协调 HTTP、HTTPS、HTTP/2 和 H2C 监听集合；新增端口全部绑定成功后才切换，移除端口在后台优雅排空现有请求。
 - **证书热更新**: Reload 完整验证并原子替换 TLS 证书快照，既有 HTTPS 监听无需重启即可在后续握手中使用新证书。

@@ -12,8 +12,9 @@ import (
 )
 
 func TestWebSocketService(t *testing.T) {
+	ws := NewWebServer()
 	// 注册 WebSocket 服务
-	Host("*").WebSocket("/ws", func(conn *websocket.Conn) {
+	ws.Host("*").WebSocket("/ws", func(conn *websocket.Conn) {
 		for {
 			var msg map[string]any
 			if err := conn.ReadJSON(&msg); err != nil {
@@ -24,7 +25,7 @@ func TestWebSocketService(t *testing.T) {
 	}).Auth(0).Memo("test websocket")
 
 	// 启动测试服务器
-	server := httptest.NewServer(&RouteHandler{ws: DefaultServer})
+	server := httptest.NewServer(&RouteHandler{ws: ws})
 	defer server.Close()
 
 	// 建立连接

@@ -11,6 +11,8 @@
 - **自动校验**: 集成 `verify` 引擎，通过 Struct Tag 实现入参合法性自动检查。
 - **功能闭环**: 内置静态文件服务、基础 WebSocket 注册、URL 重写、反向代理（对接 Discover）。
 - **统一 ID 体系**: 整合 Redis 集群版 ID 生成器，全局统一生成 `RequestId` 与 `LogTraceID`。
+- **可信客户端 IP**: `Request.ClientIp()` 在请求进入服务前已有 Request ID 时信任 `X-Real-IP`/`X-Forwarded-For`；没有 Request ID 的直连请求默认忽略这些代理头，可通过 `AcceptXRealIpWithoutRequestId` 显式放宽。代理链只采用第一个合法地址。
+- **可靠停机**: 服务停止时会先取消所有请求的 `Context()`，SSE 和其他长连接应监听 `request.Context().Done()`；WebSocket 会收到 `1001 Going Away` 并在统一停止期限内完成关闭握手，超时后框架强制关闭全部残余连接。
 
 ## API 指南
 

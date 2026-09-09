@@ -1,5 +1,12 @@
 # Service Module Test Report
 
+## v1.5.39 验证
+- `TestWebServerStopCancelsRequestLifecycle` 验证停机信号会取消长连接请求 Context；`TestWebServerStopForceClosesAfterTimeout` 验证不响应取消的 handler 不会令停机永久阻塞。
+- `TestWebServerStopNotifiesWebSocketAndWaitsForHandler` 验证 WebSocket 收到标准关闭通知并完成握手；`TestWebServerStopForceClosesUnresponsiveWebSocket` 验证总超时后强制断开拒不退出的连接。
+- `TestClientIpRejectsUntrustedProxyHeaders` 验证默认忽略直连客户端伪造的代理 IP。
+- `TestClientIpUsesTrustedRealIPAndFirstForwardedAddress` 与 `TestClientIpSkipsMalformedForwardedAddresses` 覆盖 `X-Real-IP`、代理链首地址、非法值及 IPv6。
+- `go test -v ./...`、`go test -bench=. ./...` 与 WebSocket 生命周期 race 测试通过；`BenchmarkRouting`: **2486 ns/op**（Darwin / Apple M3 Max）。
+
 ## v1.5.38 验证
 - 动态监听覆盖运行时新增、移除、复用未变化端口，以及新增端口绑定失败时保留原监听集合。
 - `TestWebServerTLSCertificateReloadAppliesToNewConnections` 通过真实 TLS 握手验证证书续期立即作用于新连接，并验证无效证书不会替换上一份有效证书。

@@ -37,12 +37,14 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	tracker := timer.Start()
 	requestId := r.Header.Get(discover.HeaderRequestId)
+	hadUpstreamRequestID := requestId != ""
 	if requestId == "" {
 		requestId = IDMaker.Get10Bytes14MPerSecond()
 		r.Header.Set(discover.HeaderRequestId, requestId)
 	}
 
 	request := NewRequest(r)
+	request.trustProxyClientIP = hadUpstreamRequestID || ws.Config.AcceptXRealIpWithoutRequestId
 	request.Id = requestId
 	response := NewResponse(w, ws)
 	response.Id = requestId

@@ -3,9 +3,12 @@ package service
 import (
 	"apigo.cc/go/jsmod"
 	"apigo.cc/go/log"
+	"context"
 	"github.com/gorilla/websocket"
 	"net/http"
 	"reflect"
+	"sync"
+	"time"
 )
 
 var defaultUpgrader = &websocket.Upgrader{
@@ -14,7 +17,9 @@ var defaultUpgrader = &websocket.Upgrader{
 
 // WebSocketConn 包装标准的 websocket.Conn，提供更友好的接口
 type WebSocketConn struct {
-	Conn *websocket.Conn
+	Conn      *websocket.Conn
+	server    *WebServer
+	closeOnce sync.Once
 }
 
 // Send 发送消息，支持 string, []byte 或 自动转 JSON
@@ -62,7 +67,16 @@ func (c *WebSocketConn) ReadJSON(v any) error {
 
 // Close 关闭连接
 func (c *WebSocketConn) Close() error {
-	if err := c.Conn.Close(); err != nil {
+	var err error
+	c.closeOnce.Do(func() {
+		if c.Conn != nil {
+			err = c.Conn.Close()
+		}
+		if c.server != nil {
+			c.server.unregisterWebSocket(c)
+		}
+	})
+	if err != nil {
 		return jsmod.MakeError(err)
 	}
 	return nil
@@ -74,7 +88,87 @@ func Upgrade(response *Response, request *Request) (*WebSocketConn, error) {
 	if err != nil {
 		return nil, jsmod.MakeError(err)
 	}
-	return &WebSocketConn{Conn: conn}, nil
+	wsConn := &WebSocketConn{Conn: conn}
+	if response.server != nil && !response.server.registerWebSocket(wsConn) {
+		_ = conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseGoingAway, "service stopping"), time.Now().Add(time.Second))
+		_ = conn.Close()
+		return nil, jsmod.MakeError(http.ErrServerClosed)
+	}
+	return wsConn, nil
+}
+
+func (ws *WebServer) signalWebSocketChangeLocked() {
+	close(ws.websocketConnsChanged)
+	ws.websocketConnsChanged = make(chan struct{})
+}
+
+func (ws *WebServer) registerWebSocket(conn *WebSocketConn) bool {
+	ws.websocketConnsLock.Lock()
+	defer ws.websocketConnsLock.Unlock()
+	if ws.websocketStopping {
+		return false
+	}
+	conn.server = ws
+	ws.websocketConns[conn] = struct{}{}
+	ws.signalWebSocketChangeLocked()
+	return true
+}
+
+func (ws *WebServer) unregisterWebSocket(conn *WebSocketConn) {
+	ws.websocketConnsLock.Lock()
+	defer ws.websocketConnsLock.Unlock()
+	if _, exists := ws.websocketConns[conn]; exists {
+		delete(ws.websocketConns, conn)
+		ws.signalWebSocketChangeLocked()
+	}
+}
+
+func (ws *WebServer) beginWebSocketShutdown(ctx context.Context) {
+	ws.websocketConnsLock.Lock()
+	ws.websocketStopping = true
+	connections := make([]*WebSocketConn, 0, len(ws.websocketConns))
+	for conn := range ws.websocketConns {
+		connections = append(connections, conn)
+	}
+	ws.websocketConnsLock.Unlock()
+
+	deadline := time.Now().Add(time.Second)
+	if ctxDeadline, ok := ctx.Deadline(); ok && ctxDeadline.Before(deadline) {
+		deadline = ctxDeadline
+	}
+	message := websocket.FormatCloseMessage(websocket.CloseGoingAway, "service stopping")
+	for _, conn := range connections {
+		_ = conn.Conn.WriteControl(websocket.CloseMessage, message, deadline)
+	}
+}
+
+func (ws *WebServer) waitForWebSockets(ctx context.Context) bool {
+	for {
+		ws.websocketConnsLock.Lock()
+		if len(ws.websocketConns) == 0 {
+			ws.websocketConnsLock.Unlock()
+			return true
+		}
+		changed := ws.websocketConnsChanged
+		ws.websocketConnsLock.Unlock()
+		select {
+		case <-changed:
+		case <-ctx.Done():
+			return false
+		}
+	}
+}
+
+func (ws *WebServer) closeWebSockets() {
+	ws.websocketConnsLock.Lock()
+	connections := make([]*WebSocketConn, 0, len(ws.websocketConns))
+	for conn := range ws.websocketConns {
+		connections = append(connections, conn)
+	}
+	ws.websocketConnsLock.Unlock()
+	for _, conn := range connections {
+		_ = conn.Close()
+	}
 }
 
 func (ws *WebServer) doWebsocketService(wsc *websocketServiceType, request *Request, response *Response, logger *log.Logger, object any) {
