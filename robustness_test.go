@@ -3,10 +3,10 @@ package service
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
-	"net/url"
 )
 
 func TestStaticRobustness(t *testing.T) {
@@ -31,7 +31,7 @@ func TestStaticRobustness(t *testing.T) {
 
 	// 构造编码后的请求路径
 	encodedPath := "/img/" + url.PathEscape("The NPC Awakens/The Loop/scene/M/画面逐渐亮起，铁匠铺的铁锤在无人操作的情况下，机械地敲击着烧红的铁块。_large.webp")
-	
+
 	// 测试静态文件访问
 	req := httptest.NewRequest("GET", encodedPath+"?v=1780317467305", nil)
 	w := httptest.NewRecorder()
@@ -47,7 +47,7 @@ func TestStaticRobustness(t *testing.T) {
 func TestDynamicRobustness(t *testing.T) {
 	ws := NewWebServer()
 	ws.Config.App = "test"
-	
+
 	pathPattern := "/api/scene/{name}"
 	ws.Host("*").GET(pathPattern, func(in struct{ Name string }) string {
 		return "Hello " + in.Name

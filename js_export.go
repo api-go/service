@@ -18,11 +18,11 @@ func init() {
 	})
 }
 
-func jsExportRequest() *Request { return &Request{} }
-func jsExportResponse() *Response { return &Response{} }
+func jsExportRequest() *Request         { return &Request{} }
+func jsExportResponse() *Response       { return &Response{} }
 func jsExportWebSocket() *WebSocketConn { return &WebSocketConn{} }
-func jsExportSession() *Session { return &Session{} }
-func jsExportFile() *jsUploadFile { return &jsUploadFile{} }
+func jsExportSession() *Session         { return &Session{} }
+func jsExportFile() *jsUploadFile       { return &jsUploadFile{} }
 
 func jsUpgrade(response *Response, request *Request) (*WebSocketConn, error) {
 	conn, err := Upgrade(response, request)

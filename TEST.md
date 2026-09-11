@@ -100,6 +100,7 @@
 - [x] `TestSessionLogic`: Session Save/Load/Remove 及 AuthFuncs
 - [x] `TestSessionInjection`: Session HTTP 注入流程
 - [x] Logging Filters: NoLogInput/NoLogOutput/NoLogAllHeaders/NoLogGets/NoLogRequestHeaders/NoLogResponseHeaders/NoLogResponseFields
+- [x] `TestSensitiveRequestHeadersAreExcludedByDefault`: 请求日志默认排除认证头、代理认证头和 Cookie。
 - [x] Client Keys: Device-Id/Session-Id 应答头条件化（请求有则不应答）、静态文件/WebSocket 仅 Cookie
 - [x] Cookie 头智能过滤: 排除列表中 key 从 Cookie 内容中剔除，保留业务 Cookie
 - [x] Response Body: 200 响应和 dev 模式下 keepBody 捕获

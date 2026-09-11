@@ -654,7 +654,7 @@ func (ws *WebServer) handleClientKeys(request *Request, response *Response) {
 
 // effectiveNoLogRequestHeaders 返回请求头排除列表（动态默认值 + 用户配置追加）
 func (ws *WebServer) effectiveNoLogRequestHeaders() string {
-	parts := []string{"X-Request-Id", "X-Device-Id", "X-Session-Id"}
+	parts := []string{"Authorization", "Proxy-Authorization", "Cookie", "X-Request-Id", "X-Device-Id", "X-Session-Id"}
 	if ws.usedDeviceIdKey != "" {
 		parts = append(parts, ws.usedDeviceIdKey)
 	}

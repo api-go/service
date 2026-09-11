@@ -2,6 +2,7 @@ package service
 
 import (
 	"net/http"
+	"slices"
 	"sort"
 	"strings"
 
@@ -144,6 +145,9 @@ func sanitizeLogHeaders(h http.Header, noLogHeaders string) map[string]string {
 	excludes := splitAndTrim(noLogHeaders)
 	for k, v := range h {
 		if k == "Cookie" && len(excludes) > 0 {
+			if slices.ContainsFunc(excludes, func(ex string) bool { return strings.EqualFold(ex, "Cookie") }) {
+				continue
+			}
 			if filtered := sanitizeCookieValue(v, excludes); filtered != "" {
 				result[k] = filtered
 			}
