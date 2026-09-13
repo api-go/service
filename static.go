@@ -26,6 +26,43 @@ func isAssetTextType(contentType, name string) bool {
 	return ext == ".js" || ext == ".mjs" || ext == ".json" || ext == ".svg" || ext == ".xml" || ext == ".html" || ext == ".htm" || ext == ".css"
 }
 
+func minifiedSiblingName(name string) string {
+	ext := pathpkg.Ext(name)
+	if ext == "" || strings.HasSuffix(strings.TrimSuffix(name, ext), ".min") {
+		return ""
+	}
+	return strings.TrimSuffix(name, ext) + ".min" + ext
+}
+
+func physicalMinifiedSibling(name string) (string, *file.FileInfo) {
+	candidate := minifiedSiblingName(name)
+	if candidate == "" {
+		return "", nil
+	}
+	info := file.GetFileInfo(candidate)
+	if info == nil || info.IsDir {
+		return "", nil
+	}
+	return candidate, info
+}
+
+func openMinifiedSibling(source http.FileSystem, name string) (http.File, os.FileInfo, bool) {
+	candidate := minifiedSiblingName(name)
+	if candidate == "" {
+		return nil, nil, false
+	}
+	opened, err := source.Open(candidate)
+	if err != nil {
+		return nil, nil, false
+	}
+	info, err := opened.Stat()
+	if err != nil || info.IsDir() {
+		_ = opened.Close()
+		return nil, nil, false
+	}
+	return opened, info, true
+}
+
 func (ws *WebServer) assetCachePath(name string) string {
 	root := ws.Config.AutoReversionCachePath
 	if root == "" {
@@ -224,6 +261,11 @@ func (ws *WebServer) physicalAssetLoader(host string) assetGraphLoader {
 		if info == nil || info.IsDir {
 			return nil, 0, false
 		}
+		if ws.Config.AutoMinify && isAssetTextType(mime.TypeByExtension(filepath.Ext(physicalPath)), physicalPath) {
+			if candidate, candidateInfo := physicalMinifiedSibling(physicalPath); candidateInfo != nil {
+				physicalPath, info = candidate, candidateInfo
+			}
+		}
 		if !readContent {
 			return nil, info.ModTime, true
 		}
@@ -236,7 +278,7 @@ func staticFSAssetNamespace(host string, match staticFSMatch) string {
 	return "fs:" + host + ":" + match.route
 }
 
-func staticFSAssetLoader(match staticFSMatch) assetGraphLoader {
+func (ws *WebServer) staticFSAssetLoader(match staticFSMatch) assetGraphLoader {
 	return func(assetPath string, readContent bool) ([]byte, int64, bool) {
 		name := strings.TrimPrefix(assetPath, match.route)
 		name = strings.TrimPrefix(pathpkg.Clean("/"+name), "/")
@@ -248,6 +290,12 @@ func staticFSAssetLoader(match staticFSMatch) assetGraphLoader {
 		info, err := opened.Stat()
 		if err != nil || info.IsDir() {
 			return nil, 0, false
+		}
+		if ws.Config.AutoMinify && isAssetTextType(mime.TypeByExtension(filepath.Ext(name)), name) {
+			if candidate, candidateInfo, ok := openMinifiedSibling(match.fileSystem, name); ok {
+				_ = opened.Close()
+				opened, info = candidate, candidateInfo
+			}
 		}
 		if !readContent {
 			return nil, info.ModTime().Unix(), true
@@ -350,6 +398,22 @@ func (ws *WebServer) expandAssetPattern(host, sourcePath, pattern string) []stri
 		})
 	}
 	sort.Strings(matches)
+	if ws.Config.AutoMinify && !strings.Contains(pattern, ".min") {
+		logical := make(map[string]bool, len(matches))
+		for _, assetPath := range matches {
+			logical[assetPath] = true
+		}
+		filtered := matches[:0]
+		for _, assetPath := range matches {
+			ext := pathpkg.Ext(assetPath)
+			base := strings.TrimSuffix(assetPath, ext)
+			if strings.HasSuffix(base, ".min") && logical[strings.TrimSuffix(base, ".min")+ext] {
+				continue
+			}
+			filtered = append(filtered, assetPath)
+		}
+		matches = filtered
+	}
 	return matches
 }
 
@@ -439,7 +503,12 @@ func (ws *WebServer) processStatic(requestPath string, request *Request, respons
 	if wasDirectory {
 		assetSourcePath = pathpkg.Join(assetSourcePath, filepath.Base(filePath))
 	}
-
+	preMinified := false
+	if ws.Config.AutoMinify && isAssetTextType(mime.TypeByExtension(filepath.Ext(filePath)), filePath) {
+		if candidate, candidateInfo := physicalMinifiedSibling(filePath); candidateInfo != nil {
+			filePath, info, preMinified = candidate, candidateInfo, true
+		}
+	}
 	// 静态文件通过 Cookie 维护 ID，不应答 Device-Id / Session-Id 头
 	response.Header().Del(ws.usedDeviceIdKey)
 	response.Header().Del(ws.usedSessionIdKey)
@@ -478,7 +547,7 @@ func (ws *WebServer) processStatic(requestPath string, request *Request, respons
 	}
 
 	if ws.webDevEnabled || ((ws.Config.AutoReversion || ws.Config.AutoMinify) && isAssetTextType(contentType, filePath)) {
-		if ws.Config.AutoMinify && isAssetTextType(contentType, filePath) {
+		if ws.Config.AutoMinify && !preMinified && isAssetTextType(contentType, filePath) {
 			if cached, cacheErr := BuildAssetCache(filePath, ws.assetCachePath(request.URL.Path), time.Unix(info.ModTime, 0), data, func(input []byte) ([]byte, error) { return minifyAsset(filePath, input) }); len(cached) > 0 {
 				data = cached
 				if cacheErr != nil {
@@ -540,6 +609,13 @@ func (ws *WebServer) processStaticFS(match staticFSMatch, request *Request, resp
 	if info.IsDir() {
 		return false
 	}
+	preMinified := false
+	if ws.Config.AutoMinify && isAssetTextType(mime.TypeByExtension(filepath.Ext(name)), name) {
+		if candidate, candidateInfo, ok := openMinifiedSibling(match.fileSystem, name); ok {
+			_ = opened.Close()
+			opened, info, preMinified = candidate, candidateInfo, true
+		}
+	}
 	assetSourcePath := pathpkg.Join("/", match.route, name)
 	seeker, ok := opened.(interface {
 		Read([]byte) (int, error)
@@ -555,7 +631,7 @@ func (ws *WebServer) processStaticFS(match staticFSMatch, request *Request, resp
 		response.Header().Set("Content-Type", contentType)
 	}
 	assetNamespace := staticFSAssetNamespace(request.Host, match)
-	assetLoader := staticFSAssetLoader(match)
+	assetLoader := ws.staticFSAssetLoader(match)
 	if strings.HasPrefix(contentType, "text/html") {
 		assetLoader = ws.expandedHTMLAssetLoader(assetNamespace, request.Host, assetSourcePath, assetLoader)
 	}
@@ -576,7 +652,7 @@ func (ws *WebServer) processStaticFS(match staticFSMatch, request *Request, resp
 		if readErr != nil {
 			return false
 		}
-		if ws.Config.AutoMinify && isAssetTextType(contentType, name) {
+		if ws.Config.AutoMinify && !preMinified && isAssetTextType(contentType, name) {
 			if cached, cacheErr := BuildAssetCache(name, ws.assetCachePath(name), info.ModTime(), data, func(input []byte) ([]byte, error) { return minifyAsset(name, input) }); len(cached) > 0 {
 				data = cached
 				if cacheErr != nil {

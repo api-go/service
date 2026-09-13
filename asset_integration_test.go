@@ -116,6 +116,7 @@ func TestAutoAssetReversionStaticHTTPScenario(t *testing.T) {
 	ws := NewWebServer()
 	ws.Config.AutoReversion = true
 	ws.Config.AutoMinify = true
+	ws.Config.AutoReversionCachePath = t.TempDir()
 	dir := t.TempDir()
 	for name, content := range map[string]string{"index.html": `<script src="app.js"></script><link href="main.css">`, "app.js": "var app = 1;", "main.css": ".app { color: red; }", "video.bin": "0123456789"} {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0644); err != nil {
@@ -146,6 +147,92 @@ func TestAutoAssetReversionStaticHTTPScenario(t *testing.T) {
 	defer rangeResp.Body.Close()
 	if rangeResp.StatusCode != http.StatusPartialContent {
 		t.Fatalf("range status: %d", rangeResp.StatusCode)
+	}
+}
+
+func TestAutoMinifyPrefersSiblingMinifiedAsset(t *testing.T) {
+	ws := NewWebServer()
+	ws.Config.AutoMinify = true
+	ws.Config.AutoReversionCachePath = t.TempDir()
+	dir := t.TempDir()
+	sourceTime := time.Unix(1700000000, 0)
+	minifiedTime := sourceTime.Add(time.Minute)
+	for name, content := range map[string]string{
+		"app.js":     "const source = 1 + 2;",
+		"app.min.js": "globalThis.prebuilt = true;",
+		"other.js":   "const other = 1 + 2;",
+	} {
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+		modTime := sourceTime
+		if name == "app.min.js" {
+			modTime = minifiedTime
+		}
+		if err := os.Chtimes(path, modTime, modTime); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ws.ReplaceStaticFSExclusive("*", map[string]http.FileSystem{"/": http.Dir(dir)})
+	server := httptest.NewServer(&RouteHandler{ws: ws})
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/app.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if string(body) != "globalThis.prebuilt = true;" {
+		t.Fatalf("prebuilt sibling was not served: %s", body)
+	}
+	if got := resp.Header.Get("Last-Modified"); got != minifiedTime.UTC().Format(http.TimeFormat) {
+		t.Fatalf("Last-Modified does not describe prebuilt sibling: %s", got)
+	}
+
+	fallback, err := http.Get(server.URL + "/other.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fallbackBody, _ := io.ReadAll(fallback.Body)
+	fallback.Body.Close()
+	if string(fallbackBody) == "const other = 1 + 2;" {
+		t.Fatalf("asset without sibling did not use runtime minification: %s", fallbackBody)
+	}
+}
+
+func TestAutoMinifyPrefersPhysicalSiblingAndHidesItFromPatterns(t *testing.T) {
+	ws := NewWebServer()
+	ws.Config.AutoMinify = true
+	ws.Config.AutoReversionCachePath = t.TempDir()
+	dir := t.TempDir()
+	for name, content := range map[string]string{
+		"app.js":     "const source = 1 + 2;",
+		"app.min.js": "globalThis.physicalPrebuilt = true;",
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ws.Static("/", dir)
+	server := httptest.NewServer(&RouteHandler{ws: ws})
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/app.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if string(body) != "globalThis.physicalPrebuilt = true;" {
+		t.Fatalf("physical prebuilt sibling was not served: %s", body)
+	}
+	if matches := ws.expandAssetPattern("", "/index.html", "/*.js"); len(matches) != 1 || matches[0] != "/app.js" {
+		t.Fatalf("prebuilt sibling leaked into logical wildcard assets: %#v", matches)
+	}
+	if matches := ws.expandAssetPattern("", "/index.html", "/*.min.js"); len(matches) != 1 || matches[0] != "/app.min.js" {
+		t.Fatalf("explicit minified wildcard was not preserved: %#v", matches)
 	}
 }
 

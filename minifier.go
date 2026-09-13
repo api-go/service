@@ -17,10 +17,15 @@ import (
 
 var assetMinifier = func() *minify.M {
 	m := minify.New()
-	m.Add("text/html", &html.Minifier{})
+	// Declarative UI templates may place framework <template> elements after
+	// elements whose end tags are optional in ordinary HTML. Keep the explicit
+	// structure and attribute quoting so minification cannot change the DOM that
+	// the binding runtime receives.
+	m.Add("text/html", &html.Minifier{KeepEndTags: true, KeepQuotes: true})
 	m.Add("text/css", &css.Minifier{})
-	m.Add("application/javascript", &js.Minifier{})
-	m.Add("text/javascript", &js.Minifier{})
+	jsMinifier := &js.Minifier{KeepVarNames: true}
+	m.Add("application/javascript", jsMinifier)
+	m.Add("text/javascript", jsMinifier)
 	m.Add("application/json", &json.Minifier{})
 	m.Add("image/svg+xml", &svg.Minifier{})
 	m.Add("text/xml", &xml.Minifier{})

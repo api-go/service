@@ -43,6 +43,18 @@ func TestMinifyAsset(t *testing.T) {
 	}
 }
 
+func TestMinifyJavaScriptKeepsDeclaredNames(t *testing.T) {
+	got, err := minifyAsset("bundle.js", []byte("class StableExtension {}\nconst stableFacet = new StableExtension();"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"StableExtension", "stableFacet"} {
+		if !strings.Contains(string(got), name) {
+			t.Fatalf("JavaScript minification renamed %s: %s", name, got)
+		}
+	}
+}
+
 func TestMinifyHTMLPreservesDeclarativeUIBindings(t *testing.T) {
 	input := []byte(`<!doctype html>
 <List $.state.list="users" $onclick="selectUser(item.id)">
@@ -59,18 +71,29 @@ func TestMinifyHTMLPreservesDeclarativeUIBindings(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		`$.state.list=users`,
-		`$onclick=selectUser(item.id)`,
-		`$.state.rows=item.rows`,
+		`$.state.list="users"`,
+		`$onclick="selectUser(item.id)"`,
+		`$.state.rows="item.rows"`,
 		`${item.active ? 'table-success' : ''}`,
-		`$.state.schema=item.schema`,
-		`$onsubmit=saveForm(form)`,
+		`$.state.schema="item.schema"`,
+		`$onsubmit="saveForm(form)"`,
 		`${user.id}`,
 		`${user.name}`,
 	} {
 		if !strings.Contains(string(got), want) {
 			t.Fatalf("minified HTML lost declarative or template content %q: %s", want, got)
 		}
+	}
+}
+
+func TestMinifyEmbeddedHTMLKeepsOptionBoundaryBeforeTemplate(t *testing.T) {
+	input := []byte("const view = Util.makeDom(/*html*/`<select><option value=\"\">Default model</option><template $each=\"models\"><option $value=\"model\"></option></template></select>`)")
+	got, err := minifyAsset("picker.js", input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(got), `</option><template $each="models">`) {
+		t.Fatalf("option boundary changed during embedded HTML minification: %s", got)
 	}
 }
 

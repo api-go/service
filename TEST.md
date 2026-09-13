@@ -1,5 +1,10 @@
 # Service Module Test Report
 
+## v1.5.41 验证
+- 验证磁盘与 `http.FileSystem` 静态资源优先使用 `.min.*` 兄弟文件，并保持逻辑 wildcard 与显式 `.min.*` wildcard 的边界。
+- 验证声明式 HTML 属性、可省略结束标签边界和 JavaScript 声明名称在压缩后保持稳定。
+- `go test -v ./...` 与 `go test -bench=. ./...` 作为发布前完整验证执行；`BenchmarkRouting`: **2604 ns/op**（Darwin / Apple M3 Max）。
+
 ## v1.5.39 验证
 - `TestWebServerStopCancelsRequestLifecycle` 验证停机信号会取消长连接请求 Context；`TestWebServerStopForceClosesAfterTimeout` 验证不响应取消的 handler 不会令停机永久阻塞。
 - `TestWebServerStopNotifiesWebSocketAndWaitsForHandler` 验证 WebSocket 收到标准关闭通知并完成握手；`TestWebServerStopForceClosesUnresponsiveWebSocket` 验证总超时后强制断开拒不退出的连接。
