@@ -1,3 +1,8 @@
+# Changelog
+
+## Unreleased — planned v1.5.42 (2026-10-06)
+- Static路径后缀按注册根目录归一化，防止原始／编码的..路径越出目录；正常静态资源映射保持不变。
+
 # CHANGELOG - go/service
 
 ## v1.5.41 (2026-09-13)

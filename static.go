@@ -456,7 +456,9 @@ func walkHTTPFileSystem(source http.FileSystem, name string, visit func(string))
 func (ws *WebServer) findMatchedPathSorted(config []*staticType, requestPath string) string {
 	for _, rule := range config {
 		if strings.HasPrefix(requestPath, rule.path) {
-			return filepath.Join(*rule.rootPath, requestPath[len(rule.path):])
+			// Anchor the suffix before joining so .. cannot escape the registered root.
+			name := strings.TrimPrefix(pathpkg.Clean("/"+requestPath[len(rule.path):]), "/")
+			return filepath.Join(*rule.rootPath, filepath.FromSlash(name))
 		}
 	}
 	return ""

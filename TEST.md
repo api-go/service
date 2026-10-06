@@ -119,3 +119,7 @@
 - [x] 成功集成 `apigo.cc/go/id` 与 `go/redis` 实现分布式有序 ID。
 - [x] 成功集成 `apigo.cc/go/discover` 并支持 H2C 协议的零配置自动注册。
 - [x] **Safety**: 已集成 `recover` 机制，保障服务在高并发业务 Panic 时的稳定性。
+
+## 静态目录边界覆盖（未发布）
+
+TestStaticCannotEscapeRegisteredDirectory覆盖根目录注册的正常文件以及原始／一次／二次编码的越界路径，不允许返回目录外文件。go test -v ./...、go test -race ./...、go test -bench=. ./...均通过。BenchmarkRouting约2820ns/op，BenchmarkIngress约2148ns/op（本机单次结果）。

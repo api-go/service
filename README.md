@@ -177,3 +177,7 @@ service:
 - **服务发现**: `apigo.cc/go/discover`（`service v1.5.22` 对齐 `discover v1.5.8`）
 - **分布式 ID**: `apigo.cc/go/id`
 - **文件操作**: `apigo.cc/go/file`
+
+### 静态根目录边界（未发布修复）
+
+Static(path, rootPath)的URL后缀在连接rootPath前按根路径归一化，原始及编码的..不能越出注册目录。公开文件与服务端模板应分别放在www／tpl；应用可直接Static("/", "www")。
