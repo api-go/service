@@ -21,6 +21,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -35,23 +36,27 @@ type assetPatternState struct {
 }
 
 type WebServer struct {
-	Config          ServiceConfig
-	server          *http.Server
-	listener        net.Listener
-	servers         []*http.Server
-	listeners       []net.Listener
-	Addr            string
-	Addrs           []string
-	listenConfigs   []listenConfig
-	useDiscover     bool
-	discoverStarted bool
-	logger          *log.Logger
-	lifecycleMu     sync.Mutex
-	lifecycleCtx    context.Context
-	lifecycleCancel context.CancelFunc
-	tlsMu           sync.RWMutex
-	tlsCertificates map[string]*tls.Certificate
-	tlsFallback     *tls.Certificate
+	clientIPPolicy      atomic.Pointer[compiledClientIPPolicy]
+	requestGate         atomic.Pointer[requestGateEntry]
+	managedPolicies     atomic.Pointer[hostPolicyRegistry]
+	certificateProvider atomic.Pointer[certificateProviderEntry]
+	Config              ServiceConfig
+	server              *http.Server
+	listener            net.Listener
+	servers             []*http.Server
+	listeners           []net.Listener
+	Addr                string
+	Addrs               []string
+	listenConfigs       []listenConfig
+	useDiscover         bool
+	discoverStarted     bool
+	logger              *log.Logger
+	lifecycleMu         sync.Mutex
+	lifecycleCtx        context.Context
+	lifecycleCancel     context.CancelFunc
+	tlsMu               sync.RWMutex
+	tlsCertificates     map[string]*tls.Certificate
+	tlsFallback         *tls.Certificate
 
 	// 运行时状态
 	serverId   string
@@ -389,6 +394,11 @@ func (ws *WebServer) Start(ctx context.Context, logger *log.Logger) error {
 	if err := config.Load(&ws.Config, "service"); err != nil {
 		logger.Error("failed to load config during start", "error", err.Error())
 	}
+	if ws.Config.ClientIP.Mode != "" {
+		if err := ws.SetClientIPPolicy(ws.Config.ClientIP); err != nil {
+			return err
+		}
+	}
 	ws.ApplyConfig()
 	if ws.Config.AutoReversion {
 		ws.assetGraph.start()
@@ -600,6 +610,7 @@ func listenConfigKey(config listenConfig) string {
 
 func cloneServiceConfig(config ServiceConfig) ServiceConfig {
 	cloned := config
+	cloned.ClientIP.TrustedProxies = append([]string(nil), config.ClientIP.TrustedProxies...)
 	cloned.Calls = make(map[string]CallConfig, len(config.Calls))
 	for name, call := range config.Calls {
 		cloned.Calls[name] = call
@@ -818,6 +829,14 @@ func (ws *WebServer) Reload() error {
 	if err := config.Load(&nextConfig, "service"); err != nil {
 		return fmt.Errorf("load service config: %w", err)
 	}
+	var nextClientIP *compiledClientIPPolicy
+	if nextConfig.ClientIP.Mode != "" {
+		var err error
+		nextClientIP, err = compileClientIPPolicy(nextConfig.ClientIP)
+		if err != nil {
+			return err
+		}
+	}
 	ws.Config = nextConfig
 	listenStr := strings.TrimSpace(ws.Config.Listen)
 	configs := append([]listenConfig(nil), ws.listenConfigs...)
@@ -845,6 +864,9 @@ func (ws *WebServer) Reload() error {
 		ws.tlsCertificates, ws.tlsFallback = previousCertificates, previousFallback
 		ws.tlsMu.Unlock()
 		return err
+	}
+	if nextClientIP != nil {
+		ws.clientIPPolicy.Store(nextClientIP)
 	}
 	ws.ApplyConfig()
 

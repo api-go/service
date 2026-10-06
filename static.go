@@ -465,12 +465,27 @@ func (ws *WebServer) findMatchedPathSorted(config []*staticType, requestPath str
 }
 
 func (ws *WebServer) processStatic(requestPath string, request *Request, response *Response, logger *log.Logger) bool {
-	for _, match := range ws.getStaticFSMatches(requestPath, request.Host) {
-		if ws.processStaticFS(match, request, response) {
-			return true
+	if request.hostPolicy == nil {
+		for _, match := range ws.getStaticFSMatches(requestPath, request.Host) {
+			if ws.processStaticFS(match, request, response) {
+				return true
+			}
 		}
 	}
-	filePath := ws.getStaticFilePath(requestPath, request.Host)
+	filePath := ""
+	if request.hostPolicy != nil {
+		for _, mount := range request.hostPolicy.statics {
+			prefix := strings.TrimSuffix(mount.path, "/")
+			if requestPath == prefix || strings.HasPrefix(requestPath, prefix+"/") {
+				suffix := strings.TrimPrefix(requestPath, prefix)
+				clean := filepath.Clean("/" + suffix)
+				filePath = filepath.Join(*mount.rootPath, clean)
+				break
+			}
+		}
+	} else {
+		filePath = ws.getStaticFilePath(requestPath, request.Host)
+	}
 	if filePath == "" {
 		return false
 	}

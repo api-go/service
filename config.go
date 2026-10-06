@@ -18,6 +18,7 @@ type CallConfig struct {
 
 // ServiceConfig 核心服务配置
 type ServiceConfig struct {
+	ClientIP                      ClientIPPolicy        // 空模式保留内部兼容；Gateway 使用 direct/trusted
 	App                           string                // 应用名称。优先从环境变量 DISCOVER_APP 获取，若为空则自动通过代码检测。
 	Register                      string                // 发现服务注册中心地址。支持 Redis URL 或 Redis 配置名称。
 	Weight                        int                   // 当前节点在发现服务中的权重 (默认 100)

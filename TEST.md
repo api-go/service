@@ -120,6 +120,12 @@
 - [x] 成功集成 `apigo.cc/go/discover` 并支持 H2C 协议的零配置自动注册。
 - [x] **Safety**: 已集成 `recover` 机制，保障服务在高并发业务 Panic 时的稳定性。
 
+## 2026-10-06 ingress 验证（unreleased）
+- 外部测试包覆盖直连伪造头、Request-ID 兼容、可信 IPv4/IPv6 CIDR、右侧代理链和非法 hop。
+- 覆盖 Gate 早于 Proxy/HTTPS 且不读取 Body、发布期间每请求版本固定、非法路由校验、managed Host 隔离和代理 Session 鉴权。
+- `go test -v ./...`、`go test -bench=. ./...`、完整 `go test -race ./...` 与 `git diff --check` 通过；普通 Header 转发、hop-by-hop 清理及客户端 IP 重建也有回归覆盖。
+- 本次提交前重新执行完整测试与 benchmark；Apple M3 Max：BenchmarkRouting 2744 ns/op，BenchmarkIngressDirectGate 1889 ns/op、6353 B/op、27 allocs/op。入口 benchmark 包含请求/响应构造，不代表网络吞吐。
+
 ## 静态目录边界覆盖（未发布）
 
 TestStaticCannotEscapeRegisteredDirectory覆盖根目录注册的正常文件以及原始／一次／二次编码的越界路径，不允许返回目录外文件。go test -v ./...、go test -race ./...、go test -bench=. ./...均通过。BenchmarkRouting约2820ns/op，BenchmarkIngress约2148ns/op（本机单次结果）。

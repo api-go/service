@@ -107,6 +107,15 @@ func (ws *WebServer) tlsConfig() (*tls.Config, error) {
 		MinVersion: tls.VersionTLS12,
 		NextProtos: []string{"h2", "http/1.1"},
 		GetCertificate: func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
+			if provider := ws.certificateProvider.Load(); provider != nil && provider.provider != nil {
+				certificate, err := provider.provider(info)
+				if certificate != nil || err != nil {
+					return certificate, err
+				}
+			}
+			if policy := ws.managedPolicies.Load().match(info.ServerName); policy != nil && policy.certificate != nil {
+				return policy.certificate, nil
+			}
 			return ws.certificateForServerName(info.ServerName)
 		},
 	}, nil

@@ -62,8 +62,10 @@ func (h *Header) Values(key string) []string {
 // Request 封装 http.Request
 type Request struct {
 	*http.Request      `js:"-"`
-	contextValues      map[string]any `js:"-"`
-	trustProxyClientIP bool           `js:"-"`
+	contextValues      map[string]any      `js:"-"`
+	trustProxyClientIP bool                `js:"-"`
+	clientIP           string              `js:"-"`
+	hostPolicy         *PreparedHostPolicy `js:"-"`
 	Id                 string
 }
 
@@ -205,6 +207,9 @@ func (r *Request) SetUserId(userId string) {
 
 // ClientIp 获取真实 IP
 func (r *Request) ClientIp() string {
+	if r.clientIP != "" {
+		return r.clientIP
+	}
 	if r.trustProxyClientIP {
 		for _, value := range []string{
 			r.Header().Get("X-Real-IP"),

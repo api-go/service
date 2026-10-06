@@ -2,6 +2,10 @@
 
 ## Unreleased — planned v1.5.42 (2026-10-06)
 - Static路径后缀按注册根目录归一化，防止原始／编码的..路径越出目录；正常静态资源映射保持不变。
+- 新增入口 Gate、严格可信代理 CIDR 策略及内部 IP relay 清理接口。
+- 新增不可变 Host 请求策略整体发布、每请求快照与外部证书提供器。
+- 非零代理 AuthLevel 默认执行 Session 权限检查。
+- 保留默认内部 Request-ID relay 兼容行为。
 
 # CHANGELOG - go/service
 

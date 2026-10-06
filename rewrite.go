@@ -70,6 +70,9 @@ func (ws *WebServer) processRewrite(request *Request, response *Response, logger
 
 	for _, h := range hosts {
 		rewrites, exists := ws.hostRewrites[h]
+		if request.hostPolicy != nil {
+			rewrites, exists = request.hostPolicy.rewrites, true
+		}
 		if !exists {
 			continue
 		}
@@ -121,6 +124,9 @@ func (ws *WebServer) processRewrite(request *Request, response *Response, logger
 					return false // 继续后续处理
 				}
 			}
+		}
+		if request.hostPolicy != nil {
+			break
 		}
 	}
 

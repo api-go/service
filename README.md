@@ -12,7 +12,7 @@
 - **功能闭环**: 内置静态文件服务、基础 WebSocket 注册、URL 重写、反向代理（对接 Discover）。
 - **可控压缩**: `AutoMinify` 优先提供同目录 `.min.*` 预构建资源；运行时压缩保留声明式 HTML 结构、属性引号和 JavaScript 声明名称。
 - **统一 ID 体系**: 整合 Redis 集群版 ID 生成器，全局统一生成 `RequestId` 与 `LogTraceID`。
-- **可信客户端 IP**: `Request.ClientIp()` 在请求进入服务前已有 Request ID 时信任 `X-Real-IP`/`X-Forwarded-For`；没有 Request ID 的直连请求默认忽略这些代理头，可通过 `AcceptXRealIpWithoutRequestId` 显式放宽。代理链只采用第一个合法地址。
+- **可信客户端 IP**: 默认保留内部 Request-ID relay 兼容模式；公网入口使用 `ClientIP.Mode: direct` 或 `trusted`，后者按可信代理 CIDR 从右向左解析转发链。Request ID 不代表来源认证。
 - **可靠停机**: 服务停止时会先取消所有请求的 `Context()`，SSE 和其他长连接应监听 `request.Context().Done()`；WebSocket 会收到 `1001 Going Away` 并在统一停止期限内完成关闭握手，超时后框架强制关闭全部残余连接。
 
 ## API 指南
@@ -177,6 +177,27 @@ service:
 - **服务发现**: `apigo.cc/go/discover`（`service v1.5.22` 对齐 `discover v1.5.8`）
 - **分布式 ID**: `apigo.cc/go/id`
 - **文件操作**: `apigo.cc/go/file`
+
+## Gateway ingress APIs (unreleased, planned v1.5.42)
+
+- `WebServer.Handler() http.Handler`: 使用同一流水线，不启动 listener，适用于测试或嵌入。
+- `WebServer.SetClientIPPolicy(ClientIPPolicy) error`: 原子替换 IP 信任策略；Mode 为 legacy/direct/trusted，Header 为 X-Forwarded-For（默认）、X-Real-IP 或 X-Client-IP。trusted 必须提供 TrustedProxies；非法 hop 终止信任。
+- `WebServer.SetRequestGate(RequestGate)`: 请求 Body 未读取时执行，早于 HTTPS 重定向、Rewrite、Proxy、Static。返回 true 表示响应已处理。
+- `RelayClientIP(request)`: 外部入口在解析真实 IP 后清理并覆盖代理 IP 头，供内部 relay 使用；不提供上游身份认证。
+- `PrepareHostPolicy(HostPolicy)`: 校验并编译代理、重写、静态目录、HTTPS 跳转及 native Gate；返回不可变 PreparedHostPolicy。
+- `WebServer.ReplaceHostPolicies(map[string]*PreparedHostPolicy)`: 整体原子替换 managed registry。每次请求固定一个快照；managed Host 不回落到本地规则。移除 managed Host 后恢复本地配置。支持精确、端口、通配域名和全局匹配。
+- `WebServer.SetCertificateProvider(CertificateProvider)`: 接入外部证书生命周期；返回 nil,nil 时继续 managed/local 证书，错误终止 TLS 握手。
+- Proxy 的非零 AuthLevel 在未配置自定义 AuthChecker 时使用 Session 权限检查，与普通接口保持一致。
+
+```yaml
+service:
+  ClientIP:
+    Mode: trusted
+    TrustedProxies: ["10.0.0.0/24", "2001:db8:1::/64"]
+    Header: X-Forwarded-For
+```
+
+只信任明确配置的上级代理；上级必须正确覆盖/追加所选 Header。默认 legacy 仅适用于由网络边界保护的内部服务。TLS 证书更新作用于新握手，请求策略更新作用于新请求。
 
 ### 静态根目录边界（未发布修复）
 

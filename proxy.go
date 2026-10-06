@@ -110,6 +110,9 @@ func (ws *WebServer) findProxy(request *Request) (int, *string, *string, string)
 
 	for _, h := range hosts {
 		proxies, exists := ws.hostProxies[h]
+		if request.hostPolicy != nil {
+			proxies, exists = request.hostPolicy.proxies, true
+		}
 		if !exists {
 			continue
 		}
@@ -141,6 +144,9 @@ func (ws *WebServer) findProxy(request *Request) (int, *string, *string, string)
 				}
 			}
 		}
+		if request.hostPolicy != nil {
+			break
+		}
 	}
 
 	return 0, nil, nil, ""
@@ -169,7 +175,7 @@ func (ws *WebServer) processProxy(request *Request, response *Response, logger *
 
 	if strings.Contains(app, "://") {
 		// 直接 URL 代理
-		res := ws.getHttpClient().ManualDoByRequest(request.Request, request.Method, app+path, request.Body)
+		res := ws.getHttpClient().ManualDoByRequest(request.Request, request.Method, app+path, request.Body, proxyRelayHeaders(request)...)
 		copyResponse(res, response, logger)
 	} else {
 		// Discover 代理
@@ -180,7 +186,7 @@ func (ws *WebServer) processProxy(request *Request, response *Response, logger *
 		}
 		caller := discover.NewCaller(request.Request, logger)
 		caller.NoBody = true
-		res, _ := caller.ManualDoWithNode(request.Method, app, "", path, request.Body)
+		res, _ := caller.ManualDoWithNode(request.Method, app, "", path, request.Body, proxyRelayHeaders(request)...)
 		copyResponse(res, response, logger)
 	}
 
@@ -205,7 +211,11 @@ func (ws *WebServer) checkAuthForProxy(authLevel int, request *Request, response
 		ac = ws.webAuthChecker
 	}
 	if ac == nil {
-		return true, nil
+		if authLevel <= 0 {
+			return true, nil
+		}
+		session := NewSession(request.SessionId(), logger)
+		return session.GetAuthLevel() >= authLevel, session
 	}
 	return ac(authLevel, logger, &request.RequestURI, nil, request, response, nil)
 }
@@ -256,4 +266,21 @@ func (ws *WebServer) ReplaceProxies(host string, rules []ProxyRule) {
 	defer ws.hostPoliciesLock.Unlock()
 	ws.dynamicProxies[host] = newProxies
 	ws.rebuildProxiesUnderLock(host)
+}
+
+// proxyRelayHeaders preserves ordinary HTTP headers while reconstructing trusted IP metadata.
+func proxyRelayHeaders(request *Request) []string {
+	blocked := map[string]bool{"Connection": true, "Proxy-Connection": true, "Keep-Alive": true, "Proxy-Authenticate": true, "Proxy-Authorization": true, "Te": true, "Trailer": true, "Transfer-Encoding": true, "Upgrade": true, "X-Real-Ip": true, "X-Client-Ip": true, "X-Forwarded-For": true}
+	for _, token := range strings.Split(request.Request.Header.Get("Connection"), ",") {
+		blocked[http.CanonicalHeaderKey(strings.TrimSpace(token))] = true
+	}
+	headers := make([]string, 0, len(request.Request.Header)*2+6)
+	for key, values := range request.Request.Header {
+		if !blocked[http.CanonicalHeaderKey(key)] {
+			for _, value := range values {
+				headers = append(headers, key, value)
+			}
+		}
+	}
+	return append(headers, "X-Real-IP", request.ClientIp(), "X-Client-IP", request.ClientIp(), "X-Forwarded-For", request.ClientIp())
 }

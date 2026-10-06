@@ -23,14 +23,12 @@ type RouteHandler struct {
 }
 
 func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.URL != nil {
+		r.RequestURI = r.URL.RequestURI()
+	}
 	ws := rh.ws
 	if ws == nil {
 		ws = DefaultServer
-	}
-	if r.TLS == nil && ws.shouldForceHTTPS(r.Host) {
-		target := "https://" + ws.httpsRedirectHost(r.Host) + r.URL.RequestURI()
-		http.Redirect(w, r, target, http.StatusPermanentRedirect)
-		return
 	}
 	atomic.AddInt64(&rh.webRequestingNum, 1)
 	defer atomic.AddInt64(&rh.webRequestingNum, -1)
@@ -44,7 +42,8 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	request := NewRequest(r)
-	request.trustProxyClientIP = hadUpstreamRequestID || ws.Config.AcceptXRealIpWithoutRequestId
+	ws.resolveClientIP(request, hadUpstreamRequestID)
+	request.hostPolicy = ws.managedPolicies.Load().match(r.Host)
 	request.Id = requestId
 	response := NewResponse(w, ws)
 	response.Id = requestId
@@ -137,8 +136,23 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
+	if gate := ws.requestGate.Load(); gate != nil && gate.gate != nil && gate.gate(request, response) {
+		return
+	}
 	// 处理 SessionId 和 DeviceId
 	ws.handleClientKeys(request, response)
+
+	if request.hostPolicy != nil && request.hostPolicy.gate != nil && request.hostPolicy.gate(request, response) {
+		return
+	}
+	forceHTTPS := ws.shouldForceHTTPS(r.Host)
+	if request.hostPolicy != nil {
+		forceHTTPS = request.hostPolicy.forceHTTPS
+	}
+	if r.TLS == nil && forceHTTPS {
+		http.Redirect(w, r, "https://"+ws.httpsRedirectHost(r.Host)+r.URL.RequestURI(), http.StatusPermanentRedirect)
+		return
+	}
 
 	// 1. 处理重写 (Rewrite)
 	if ws.processRewrite(request, response, requestLogger) {
