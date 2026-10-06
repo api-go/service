@@ -178,7 +178,7 @@ service:
 - **分布式 ID**: `apigo.cc/go/id`
 - **文件操作**: `apigo.cc/go/file`
 
-## Gateway ingress APIs (unreleased, planned v1.5.42)
+## Gateway ingress APIs (v1.5.42)
 
 - `WebServer.Handler() http.Handler`: 使用同一流水线，不启动 listener，适用于测试或嵌入。
 - `WebServer.SetClientIPPolicy(ClientIPPolicy) error`: 原子替换 IP 信任策略；Mode 为 legacy/direct/trusted，Header 为 X-Forwarded-For（默认）、X-Real-IP 或 X-Client-IP。trusted 必须提供 TrustedProxies；非法 hop 终止信任。
@@ -199,6 +199,6 @@ service:
 
 只信任明确配置的上级代理；上级必须正确覆盖/追加所选 Header。默认 legacy 仅适用于由网络边界保护的内部服务。TLS 证书更新作用于新握手，请求策略更新作用于新请求。
 
-### 静态根目录边界（未发布修复）
+### 静态根目录边界（v1.5.42）
 
 Static(path, rootPath)的URL后缀在连接rootPath前按根路径归一化，原始及编码的..不能越出注册目录。公开文件与服务端模板应分别放在www／tpl；应用可直接Static("/", "www")。

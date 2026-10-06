@@ -6,7 +6,7 @@ require (
 	apigo.cc/go/cast v1.5.7
 	apigo.cc/go/config v1.5.8
 	apigo.cc/go/crypto v1.5.8
-	apigo.cc/go/discover v1.5.14
+	apigo.cc/go/discover v1.5.15
 	apigo.cc/go/encoding v1.5.8
 	apigo.cc/go/file v1.5.9
 	apigo.cc/go/http v1.5.10
