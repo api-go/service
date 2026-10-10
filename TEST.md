@@ -140,3 +140,12 @@ TestStaticCannotEscapeRegisteredDirectory覆盖根目录注册的正常文件以
 BenchmarkRouting-16              	  327060	      3396 ns/op
 BenchmarkIngressDirectGate-16    	  513038	      2449 ns/op	    6434 B/op	      32 allocs/op
 ```
+
+## v1.5.44 验证
+
+- 外部测试 TestProxyPreservesOriginalHost 校验公开 Host 与伪造请求头覆盖。
+- TestProxyPreservesStatusAndCookies 覆盖 200、204、302、303、401、403、503，正文、Location 与两条 Set-Cookie。
+- 发布检查使用 GOWORK=off 的已发布依赖；全量测试、基准测试和代理 race 检查通过。
+- API 核对采用 go doc 与导出源码交叉检查，公开 API 未改变。
+
+本次基准（Apple M3 Max）：Routing 3400 ns/op；IngressDirectGate 2592 ns/op、6434 B/op、32 allocs/op。

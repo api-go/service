@@ -229,10 +229,14 @@ func copyResponse(res *gohttp.Result, response *Response, logger *log.Logger) {
 		return
 	}
 
-	for k, v := range res.Response.Header {
-		response.Header().Set(k, v[0])
+	for k, values := range res.Response.Header {
+		response.Writer.Header().Del(k)
+		for _, value := range values {
+			response.Writer.Header().Add(k, value)
+		}
 	}
 	response.WriteHeader(res.Response.StatusCode)
+	response.checkWriteHeader()
 	if res.Response.Body != nil {
 		defer res.Response.Body.Close()
 		_, err := io.Copy(response.Writer, res.Response.Body)
@@ -282,5 +286,5 @@ func proxyRelayHeaders(request *Request) []string {
 			}
 		}
 	}
-	return append(headers, "X-Real-IP", request.ClientIp(), "X-Client-IP", request.ClientIp(), "X-Forwarded-For", request.ClientIp())
+	return append(headers, "Host", request.Host, "X-Real-IP", request.ClientIp(), "X-Client-IP", request.ClientIp(), "X-Forwarded-For", request.ClientIp())
 }
