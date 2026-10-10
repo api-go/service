@@ -202,3 +202,9 @@ service:
 ### 静态根目录边界（v1.5.42）
 
 Static(path, rootPath)的URL后缀在连接rootPath前按根路径归一化，原始及编码的..不能越出注册目录。公开文件与服务端模板应分别放在www／tpl；应用可直接Static("/", "www")。
+
+## v1.5.43 依赖基线
+
+本版本对齐 Log v1.5.17 与发布时模块索引中的上游已发布依赖；公开 API 保持兼容。
+
+Handler 自动提供 GET `/_discover/health`，默认 200/OK；可用 `discover.SetHealthHandler` 自定义状态和内容。入口在可信 IP 解析后补齐标准请求头，调用来源为 `X-From-App`/`X-From-Node`。

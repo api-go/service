@@ -129,3 +129,14 @@
 ## v1.5.42 静态目录边界覆盖
 
 TestStaticCannotEscapeRegisteredDirectory覆盖根目录注册的正常文件以及原始／一次／二次编码的越界路径，不允许返回目录外文件。go test -v ./...、go test -race ./...、go test -bench=. ./...均通过。BenchmarkRouting约2807ns/op，BenchmarkIngressDirectGate约2301ns/op（本机单次结果）。
+
+## v1.5.43 发布验证（2026-10-10）
+
+- GOWORK=off go test -v ./... 与 go test -bench=. ./... 通过，依赖均为已发布 tag。
+- API 以 GOWORK=off go doc 与导出源码交叉核对（getExports 工具不可用）。
+- GOWORK=off go test -race ./... 通过。
+
+```text
+BenchmarkRouting-16              	  327060	      3396 ns/op
+BenchmarkIngressDirectGate-16    	  513038	      2449 ns/op	    6434 B/op	      32 allocs/op
+```

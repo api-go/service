@@ -23,6 +23,11 @@ type RouteHandler struct {
 }
 
 func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.URL != nil && r.URL.Path == discover.HealthPath {
+		discover.PrepareRequest(r)
+		discover.HealthHandler().ServeHTTP(w, r)
+		return
+	}
 	if r.URL != nil {
 		r.RequestURI = r.URL.RequestURI()
 	}
@@ -43,6 +48,8 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	request := NewRequest(r)
 	ws.resolveClientIP(request, hadUpstreamRequestID)
+	r.Header.Set(discover.HeaderClientIp, request.ClientIp())
+	discover.PrepareRequest(r)
 	request.hostPolicy = ws.managedPolicies.Load().match(r.Host)
 	request.Id = requestId
 	response := NewResponse(w, ws)
