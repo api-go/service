@@ -1,6 +1,8 @@
 package service
 
 import (
+	"apigo.cc/go/crypto"
+	"apigo.cc/go/encoding"
 	"apigo.cc/go/file"
 	"apigo.cc/go/log"
 	"io"
@@ -63,13 +65,16 @@ func openMinifiedSibling(source http.FileSystem, name string) (http.File, os.Fil
 	return opened, info, true
 }
 
-func (ws *WebServer) assetCachePath(name string) string {
+func (ws *WebServer) assetCachePath(namespace, name string, content []byte) string {
 	root := ws.Config.AutoReversionCachePath
 	if root == "" {
 		root = "data/wwwcache"
 	}
 	name = strings.TrimPrefix(pathpkg.Clean("/"+name), "/")
-	return filepath.Join(root, filepath.FromSlash(name+".min"))
+	// Virtual sites share URL paths and may share modification timestamps.
+	// Include the source scope and bytes, also covering mount replacement.
+	hash := crypto.SHA256([]byte(namespace+"\x00"+name+"\x00"), content)
+	return filepath.Join(root, encoding.Hex(hash), filepath.FromSlash(name+".min"))
 }
 
 type staticFSMatch struct {
@@ -565,7 +570,7 @@ func (ws *WebServer) processStatic(requestPath string, request *Request, respons
 
 	if ws.webDevEnabled || ((ws.Config.AutoReversion || ws.Config.AutoMinify) && isAssetTextType(contentType, filePath)) {
 		if ws.Config.AutoMinify && !preMinified && isAssetTextType(contentType, filePath) {
-			if cached, cacheErr := BuildAssetCache(filePath, ws.assetCachePath(request.URL.Path), time.Unix(info.ModTime, 0), data, func(input []byte) ([]byte, error) { return minifyAsset(filePath, input) }); len(cached) > 0 {
+			if cached, cacheErr := BuildAssetCache(filePath, ws.assetCachePath(assetNamespace, filePath, data), time.Unix(info.ModTime, 0), data, func(input []byte) ([]byte, error) { return minifyAsset(filePath, input) }); len(cached) > 0 {
 				data = cached
 				if cacheErr != nil {
 					logger.Error("failed to minify asset", "path", filePath, "error", cacheErr.Error())
@@ -670,7 +675,7 @@ func (ws *WebServer) processStaticFS(match staticFSMatch, request *Request, resp
 			return false
 		}
 		if ws.Config.AutoMinify && !preMinified && isAssetTextType(contentType, name) {
-			if cached, cacheErr := BuildAssetCache(name, ws.assetCachePath(name), info.ModTime(), data, func(input []byte) ([]byte, error) { return minifyAsset(name, input) }); len(cached) > 0 {
+			if cached, cacheErr := BuildAssetCache(name, ws.assetCachePath(assetNamespace, name, data), info.ModTime(), data, func(input []byte) ([]byte, error) { return minifyAsset(name, input) }); len(cached) > 0 {
 				data = cached
 				if cacheErr != nil {
 					log.DefaultLogger.Error("failed to minify asset", "path", name, "error", cacheErr.Error())

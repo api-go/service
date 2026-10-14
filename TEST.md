@@ -1,5 +1,8 @@
 # Service Module Test Report
 
+## v1.5.46 缓存隔离验证
+- TestAutoMinifyIsolatesHostsAndReplacedMounts 覆盖两个主机同路径及替换挂载。
+
 ## v1.5.45 验证
 - 压缩消息按解压后大小限制；超限消息不会作为完整消息送达上游。独立 Dialer 配置快照与未请求的子协议拒绝有覆盖。
 - 2026-10-14 本次 Open 联动：GOWORK=off 全量与基准通过，代理专项 race（2 次）和停机专项（15 次）通过；Apple M3 Max，1 KiB WebSocket 回显 39268 ns/op、4993 B/op、19 allocs/op。API 使用 go doc -all 与源码核对。
@@ -159,3 +162,14 @@ BenchmarkIngressDirectGate-16    	  513038	      2449 ns/op	    6434 B/op	      
 - API 核对采用 go doc 与导出源码交叉检查，公开 API 未改变。
 
 本次基准（Apple M3 Max）：Routing 3400 ns/op；IngressDirectGate 2592 ns/op、6434 B/op、32 allocs/op。
+
+## v1.5.46 发布验证（2026-10-15）
+
+- `GOWORK=off go test -v ./...` 与 `GOWORK=off go test -bench=. ./...` 通过。
+- getExports 工具不可用，以 `GOWORK=off go doc` 与导出源码核对 API。
+
+```text
+BenchmarkRouting-16              	  381876	      3125 ns/op
+BenchmarkIngressDirectGate-16    	  530913	      2295 ns/op	    6433 B/op	      32 allocs/op
+BenchmarkProxyWebSocket-16       	   31534	     36531 ns/op	  28.03 MB/s	    5000 B/op	      19 allocs/op
+```

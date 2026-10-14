@@ -12,6 +12,7 @@
 - **功能闭环**: 内置静态文件服务、基础 WebSocket 注册、URL 重写、反向代理（对接 Discover）。
 - **代理协议**: 普通请求保留 HTTP/2 / H2C 协议选择；WebSocket 自动在鉴权后使用专用 HTTP/1.1 连接，支持 Cookie、Origin、子协议、双向数据和控制帧，并纳入停机管理。不实现 RFC 8441。Discover `Open` 返回握手响应，代理可保留上游 Set-Cookie 和拒绝状态/正文。
 - **可控压缩**: `AutoMinify` 优先提供同目录 `.min.*` 预构建资源；运行时压缩保留声明式 HTML 结构、属性引号和 JavaScript 声明名称。
+  自动压缩缓存按资源作用域、路径及源内容隔离，站点同路径和挂载替换不会复用其他源码的缓存。
 - **统一 ID 体系**: 整合 Redis 集群版 ID 生成器，全局统一生成 `RequestId` 与 `LogTraceID`。
 - **可信客户端 IP**: 默认保留内部 Request-ID relay 兼容模式；公网入口使用 `ClientIP.Mode: direct` 或 `trusted`，后者按可信代理 CIDR 从右向左解析转发链。Request ID 不代表来源认证。
 - **可靠停机**: 服务停止时会先取消所有请求的 `Context()`，SSE 和其他长连接应监听 `request.Context().Done()`；WebSocket 会收到 `1001 Going Away` 并在统一停止期限内完成关闭握手，超时后框架强制关闭全部残余连接。
@@ -179,7 +180,7 @@ service:
 - **分布式 ID**: `apigo.cc/go/id`
 - **文件操作**: `apigo.cc/go/file`
 
-## Gateway ingress APIs (v1.5.42)
+## Gateway ingress APIs (v1.5.46)
 
 - `WebServer.Handler() http.Handler`: 使用同一流水线，不启动 listener，适用于测试或嵌入。
 - `WebServer.SetClientIPPolicy(ClientIPPolicy) error`: 原子替换 IP 信任策略；Mode 为 legacy/direct/trusted，Header 为 X-Forwarded-For（默认）、X-Real-IP 或 X-Client-IP。trusted 必须提供 TrustedProxies；非法 hop 终止信任。
@@ -204,7 +205,7 @@ service:
 
 Static(path, rootPath)的URL后缀在连接rootPath前按根路径归一化，原始及编码的..不能越出注册目录。公开文件与服务端模板应分别放在www／tpl；应用可直接Static("/", "www")。
 
-## v1.5.43 依赖基线
+## v1.5.46 依赖基线
 
 本版本对齐 Log v1.5.17 与发布时模块索引中的上游已发布依赖；公开 API 保持兼容。
 
