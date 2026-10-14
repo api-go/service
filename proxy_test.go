@@ -1,21 +1,23 @@
-package service
+package service_test
 
 import (
+	"apigo.cc/go/service"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 )
 
 func TestRewrite(t *testing.T) {
+	ws := service.NewWebServer()
 	// 注册重写规则
-	Host("*").Rewrite("/old", "/new")
-	Host("*").Rewrite("/regex/(.*)", "/target/$1")
+	ws.Host("*").Rewrite("/old", "/new")
+	ws.Host("*").Rewrite("/regex/(.*)", "/target/$1")
 
 	// 注册目标服务
-	Host("*").ANY("/new", func() string { return "new content" }).Memo("new")
-	Host("*").ANY("/target/123", func() string { return "target content" }).Memo("target")
+	ws.Host("*").ANY("/new", func() string { return "new content" }).Memo("new")
+	ws.Host("*").ANY("/target/123", func() string { return "target content" }).Memo("target")
 
-	rh := &RouteHandler{ws: DefaultServer}
+	rh := ws.Handler()
 
 	// 测试精确匹配重写
 	req1 := httptest.NewRequest("GET", "/old", nil)
@@ -35,6 +37,7 @@ func TestRewrite(t *testing.T) {
 }
 
 func TestProxyDirect(t *testing.T) {
+	ws := service.NewWebServer()
 	// 启动后端服务器
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Backend", "ok")
@@ -43,9 +46,9 @@ func TestProxyDirect(t *testing.T) {
 	defer backend.Close()
 
 	// 注册代理规则
-	Host("*").Proxy(0, "/proxy", backend.URL+"/hello")
+	ws.Host("*").Proxy(0, "/proxy", backend.URL+"/hello")
 
-	rh := &RouteHandler{ws: DefaultServer}
+	rh := ws.Handler()
 	req := httptest.NewRequest("GET", "/proxy", nil)
 	w := httptest.NewRecorder()
 	rh.ServeHTTP(w, req)

@@ -5,6 +5,7 @@ import (
 	gohttp "apigo.cc/go/http"
 	"apigo.cc/go/log"
 	"fmt"
+	"github.com/gorilla/websocket"
 	"io"
 	"net/http"
 	"reflect"
@@ -172,6 +173,10 @@ func (ws *WebServer) processProxy(request *Request, response *Response, logger *
 	app := *proxyToApp
 	path := *proxyToPath
 	logger.Info("proxy", "app", app, "path", path, "host", foundHost)
+	if websocket.IsWebSocketUpgrade(request.Request) {
+		ws.proxyWebSocket(request, response, logger, app, path)
+		return true
+	}
 
 	if strings.Contains(app, "://") {
 		// 直接 URL 代理
@@ -194,6 +199,12 @@ func (ws *WebServer) processProxy(request *Request, response *Response, logger *
 }
 
 func (ws *WebServer) getHttpClient() *gohttp.Client {
+	ws.proxyClientsMu.RLock()
+	client := ws.proxyHTTPClient
+	ws.proxyClientsMu.RUnlock()
+	if client != nil {
+		return client
+	}
 	// 尝试从注入对象获取
 	if obj := ws.GetInject(reflect.TypeOf(&gohttp.Client{})); obj != nil {
 		return obj.(*gohttp.Client)
@@ -229,7 +240,11 @@ func copyResponse(res *gohttp.Result, response *Response, logger *log.Logger) {
 		return
 	}
 
+	blocked := proxyHopHeaders(res.Response.Header)
 	for k, values := range res.Response.Header {
+		if blocked[http.CanonicalHeaderKey(k)] {
+			continue
+		}
 		response.Writer.Header().Del(k)
 		for _, value := range values {
 			response.Writer.Header().Add(k, value)
@@ -274,9 +289,9 @@ func (ws *WebServer) ReplaceProxies(host string, rules []ProxyRule) {
 
 // proxyRelayHeaders preserves ordinary HTTP headers while reconstructing trusted IP metadata.
 func proxyRelayHeaders(request *Request) []string {
-	blocked := map[string]bool{"Connection": true, "Proxy-Connection": true, "Keep-Alive": true, "Proxy-Authenticate": true, "Proxy-Authorization": true, "Te": true, "Trailer": true, "Transfer-Encoding": true, "Upgrade": true, "X-Real-Ip": true, "X-Client-Ip": true, "X-Forwarded-For": true}
-	for _, token := range strings.Split(request.Request.Header.Get("Connection"), ",") {
-		blocked[http.CanonicalHeaderKey(strings.TrimSpace(token))] = true
+	blocked := proxyHopHeaders(request.Request.Header)
+	for _, key := range []string{"X-Real-Ip", "X-Client-Ip", "X-Forwarded-For"} {
+		blocked[key] = true
 	}
 	headers := make([]string, 0, len(request.Request.Header)*2+6)
 	for key, values := range request.Request.Header {
@@ -287,4 +302,36 @@ func proxyRelayHeaders(request *Request) []string {
 		}
 	}
 	return append(headers, "Host", request.Host, "X-Real-IP", request.ClientIp(), "X-Client-IP", request.ClientIp(), "X-Forwarded-For", request.ClientIp())
+}
+
+func proxyHopHeaders(headers http.Header) map[string]bool {
+	blocked := map[string]bool{"Connection": true, "Proxy-Connection": true, "Keep-Alive": true, "Proxy-Authenticate": true, "Proxy-Authorization": true, "Te": true, "Trailer": true, "Transfer-Encoding": true, "Upgrade": true}
+	for _, value := range headers.Values("Connection") {
+		for _, token := range strings.Split(value, ",") {
+			blocked[http.CanonicalHeaderKey(strings.TrimSpace(token))] = true
+		}
+	}
+	return blocked
+}
+
+// SetProxyHTTPClient sets the direct URL HTTP proxy transport. WebSocket defaults
+// inherit its TLS and TCP dialing configuration using an independent dialer.
+func (ws *WebServer) SetProxyHTTPClient(client *gohttp.Client) {
+	ws.proxyClientsMu.Lock()
+	defer ws.proxyClientsMu.Unlock()
+	ws.proxyHTTPClient = client
+}
+
+// SetProxyWebSocketDialer overrides the WebSocket transport without changing
+// ordinary HTTP/2 connections. The configuration is copied; nil restores defaults.
+func (ws *WebServer) SetProxyWebSocketDialer(dialer *websocket.Dialer) {
+	client := gohttp.NewClient(0)
+	client.SetWebSocketDialer(dialer)
+	var snapshot *websocket.Dialer
+	if dialer != nil {
+		snapshot = client.WebSocketDialer()
+	}
+	ws.proxyClientsMu.Lock()
+	defer ws.proxyClientsMu.Unlock()
+	ws.proxyWebSocketDialer = snapshot
 }

@@ -16,8 +16,19 @@ type CallConfig struct {
 	SSL     bool   // 是否使用 HTTPS/WSS
 }
 
+// WebSocketProxyConfig controls upgraded proxy connections independently of
+// ordinary HTTP server timeouts. All durations are milliseconds.
+type WebSocketProxyConfig struct {
+	HandshakeTimeout int   // 0 uses RedirectTimeout (default 30 seconds)
+	WriteTimeout     int   // 0 defaults to 30 seconds; negative disables the limit
+	IdleTimeout      int   // 0 disables idle expiry; data and Ping/Pong refresh it
+	MaxMessageSize   int64 // 0 leaves the message size unrestricted
+	Compression      bool  // negotiate compression independently on each leg
+}
+
 // ServiceConfig 核心服务配置
 type ServiceConfig struct {
+	WebSocketProxy                WebSocketProxyConfig
 	ClientIP                      ClientIPPolicy        // 空模式保留内部兼容；Gateway 使用 direct/trusted
 	App                           string                // 应用名称。优先从环境变量 DISCOVER_APP 获取，若为空则自动通过代码检测。
 	Register                      string                // 发现服务注册中心地址。支持 Redis URL 或 Redis 配置名称。

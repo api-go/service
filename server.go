@@ -3,6 +3,7 @@ package service
 import (
 	"apigo.cc/go/config"
 	"apigo.cc/go/discover"
+	gohttp "apigo.cc/go/http"
 	"apigo.cc/go/log"
 	"apigo.cc/go/redis"
 	"apigo.cc/go/starter"
@@ -11,6 +12,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"github.com/gorilla/websocket"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 	"net"
@@ -112,8 +114,11 @@ type WebServer struct {
 	webAuthCheckers map[int]func(int, *log.Logger, *string, map[string]any, *Request, *Response, *WebServiceOptions) (pass bool, object any)
 
 	// 注入点
-	injectObjects   map[reflect.Type]any
-	injectFunctions map[reflect.Type]func() any
+	injectObjects        map[reflect.Type]any
+	proxyClientsMu       sync.RWMutex
+	proxyHTTPClient      *gohttp.Client
+	proxyWebSocketDialer *websocket.Dialer
+	injectFunctions      map[reflect.Type]func() any
 
 	// 客户端标识
 	usedDeviceIdKey  string

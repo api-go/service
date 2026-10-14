@@ -1,5 +1,15 @@
 # Service Module Test Report
 
+## v1.5.45 验证
+- 压缩消息按解压后大小限制；超限消息不会作为完整消息送达上游。独立 Dialer 配置快照与未请求的子协议拒绝有覆盖。
+- 2026-10-14 本次 Open 联动：GOWORK=off 全量与基准通过，代理专项 race（2 次）和停机专项（15 次）通过；Apple M3 Max，1 KiB WebSocket 回显 39268 ns/op、4993 B/op、19 allocs/op。API 使用 go doc -all 与源码核对。
+- 覆盖 HTTP2 HTTPS 上游与 WSS 私有 CA、长拒绝正文与逐跳头过滤、分片大消息/压缩、空闲/消息/慢接收方写入限制、CookieJar 隔离、上游主动关闭和无效握手零上游调用。
+- TestDiscoverProxyWebSocketRejectPreservesResponse 验证 Discover 拒绝握手的 401、正文和 Cookie；成功握手 Cookie 同时覆盖直连与 Discover。
+- WebSocket 代理覆盖直连与 Redis Discover、鉴权拒绝、Cookie / Origin / Host、路径查询、子协议、文本/二进制、Ping/Pong、关闭码及两侧连接回收。
+- 验证同一 TLS 监听同时提供 HTTP/2 普通请求与 HTTP/1.1 WebSocket；Discover 普通代理仍使用 H2C，直连拒绝握手保留状态、正文及 Cookie。
+- 导出 API 使用 `GOWORK=off go doc` 与源码交叉核对；新增代理配置与传输配置 API。
+- 本地验证（2026-10-14）：`GOWORK=off go test -v ./...`、`go test -bench=. ./...` 通过；WebSocket / HTTP2 代理专项 `go test -race ... -count=5` 通过。Apple M3 Max：Routing 3261 ns/op，IngressDirectGate 2645 ns/op、6433 B/op、32 allocs/op。
+
 ## v1.5.41 验证
 - 验证磁盘与 `http.FileSystem` 静态资源优先使用 `.min.*` 兄弟文件，并保持逻辑 wildcard 与显式 `.min.*` wildcard 的边界。
 - 验证声明式 HTML 属性、可省略结束标签边界和 JavaScript 声明名称在压缩后保持稳定。

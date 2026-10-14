@@ -10,6 +10,7 @@
 - **路由反射**: 自动解析函数参数，支持 `*Request`, `*Response`, `*log.Logger` 及自定义结构体自动注入。
 - **自动校验**: 集成 `verify` 引擎，通过 Struct Tag 实现入参合法性自动检查。
 - **功能闭环**: 内置静态文件服务、基础 WebSocket 注册、URL 重写、反向代理（对接 Discover）。
+- **代理协议**: 普通请求保留 HTTP/2 / H2C 协议选择；WebSocket 自动在鉴权后使用专用 HTTP/1.1 连接，支持 Cookie、Origin、子协议、双向数据和控制帧，并纳入停机管理。不实现 RFC 8441。Discover `Open` 返回握手响应，代理可保留上游 Set-Cookie 和拒绝状态/正文。
 - **可控压缩**: `AutoMinify` 优先提供同目录 `.min.*` 预构建资源；运行时压缩保留声明式 HTML 结构、属性引号和 JavaScript 声明名称。
 - **统一 ID 体系**: 整合 Redis 集群版 ID 生成器，全局统一生成 `RequestId` 与 `LogTraceID`。
 - **可信客户端 IP**: 默认保留内部 Request-ID relay 兼容模式；公网入口使用 `ClientIP.Mode: direct` 或 `trusted`，后者按可信代理 CIDR 从右向左解析转发链。Request ID 不代表来源认证。
@@ -210,3 +211,22 @@ Static(path, rootPath)的URL后缀在连接rootPath前按根路径归一化，�
 Handler 自动提供 GET `/_discover/health`，默认 200/OK；可用 `discover.SetHealthHandler` 自定义状态和内容。入口在可信 IP 解析后补齐标准请求头，调用来源为 `X-From-App`/`X-From-Node`。
 
 代理保留上游状态码、Location、多条 Set-Cookie 和公开 Host；不会自动跟随上游跳转。
+
+## WebSocket 代理配置
+
+`WebServer.SetProxyHTTPClient(*http.Client)`（http 指 go/http）设置直连普通 HTTP 客户端；WebSocket 的默认 Dialer 继承其私有 CA、mTLS、自定义 TCP 拨号和代理配置。`WebServer.SetProxyWebSocketDialer(*websocket.Dialer)` 独立覆盖 WebSocket，nil 恢复默认；两者均应在开始服务前配置。代理不使用共享 CookieJar，只转发当前入口请求的 Cookie。
+
+`ServiceConfig.WebSocketProxy` 对应配置示例：
+
+```yaml
+WebSocketProxy:
+  HandshakeTimeout: 30000
+  WriteTimeout: 30000
+  IdleTimeout: 0
+  MaxMessageSize: 0
+  Compression: false
+```
+
+时间单位为毫秒。握手默认使用 RedirectTimeout（未设置时 30 秒）；写入 0 表示 30 秒，负值取消限制；空闲 0 表示允许长期静默，正值对两侧分别检查，数据及 Ping/Pong 续期；消息大小 0 不限制，正值同时约束两侧。代理转发心跳，不主动生成周期 Ping；启用空闲限制时应用应定期发送心跳。压缩默认关闭，两段连接独立协商。转发保留消息语义，不保证原始帧分片结构。
+
+Discover 使用新 Open 接口保留握手结果。拒绝正文最多保留 1024 字节并归一化长度；连接日志记录握手状态、节点、时长、双向消息/字节、关闭码及结束原因。依赖已发布 HTTP v1.5.12 与 Discover v1.5.17。
