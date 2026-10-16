@@ -1,5 +1,7 @@
 # go/service (核心微服务框架)
 
+[English](README.en.md) | 简体中文
+
 极简、自动化的 Web 与 WebSocket 服务框架，实现极致的依赖注入与路由映射。
 
 ## 核心特性
@@ -11,7 +13,7 @@
 - **自动校验**: 集成 `verify` 引擎，通过 Struct Tag 实现入参合法性自动检查。
 - **功能闭环**: 内置静态文件服务、基础 WebSocket 注册、URL 重写、反向代理（对接 Discover）。
 - **代理协议**: 普通请求保留 HTTP/2 / H2C 协议选择；WebSocket 自动在鉴权后使用专用 HTTP/1.1 连接，支持 Cookie、Origin、子协议、双向数据和控制帧，并纳入停机管理。不实现 RFC 8441。Discover `Open` 返回握手响应，代理可保留上游 Set-Cookie 和拒绝状态/正文。
-- **可控压缩**: `AutoMinify` 优先提供同目录 `.min.*` 预构建资源；运行时压缩保留声明式 HTML 结构、属性引号和 JavaScript 声明名称。
+- **可控压缩**: `AutoMinify` 优先提供同目录 `.min.*` 预构建资源；运行时压缩保留声明式 HTML 结构、属性引号和 JavaScript 声明名称。JavaScript 使用 esbuild 的空白压缩，不启用语法折叠或标识符改名，避免改变嵌套条件分支；压缩器版本边界参与缓存键。 HTML 内联普通脚本及 `type="module"` 共用该压缩器。`/*html*/` 优化仅作用于解析器识别的无 tag、无 JS 插值模板；字符串、注释、正则和其他模板保持 JS 语义。HTML 压缩保留注释、文档标签及默认属性值；压缩结果若引入 JS 插值、打断模板或改变 JS 转义，则保留该模板原文。模板预解析不支持的语法跳过 HTML 优化，仍由 esbuild 压缩 JS；压缩失败或缓存不可写时原样提供源码。
   自动压缩缓存按资源作用域、路径及源内容隔离，站点同路径和挂载替换不会复用其他源码的缓存。
 - **统一 ID 体系**: 整合 Redis 集群版 ID 生成器，全局统一生成 `RequestId` 与 `LogTraceID`。
 - **可信客户端 IP**: 默认保留内部 Request-ID relay 兼容模式；公网入口使用 `ClientIP.Mode: direct` 或 `trusted`，后者按可信代理 CIDR 从右向左解析转发链。Request ID 不代表来源认证。

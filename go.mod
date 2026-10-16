@@ -18,18 +18,23 @@ require (
 	apigo.cc/go/starter v1.5.13
 	apigo.cc/go/timer v1.5.0
 	apigo.cc/go/watch v1.5.10
+	github.com/dop251/goja v0.0.0-20260311135729-065cd970411c
+	github.com/evanw/esbuild v0.28.2
 	github.com/gobwas/glob v0.2.3
 	github.com/gorilla/websocket v1.5.3
 	github.com/tdewolff/minify/v2 v2.24.17
+	github.com/tdewolff/parse/v2 v2.8.16
 	golang.org/x/net v0.54.0
 )
 
 require (
 	apigo.cc/go/rand v1.5.4 // indirect
 	apigo.cc/go/shell v1.5.8 // indirect
+	github.com/dlclark/regexp2 v1.11.4 // indirect
 	github.com/fsnotify/fsnotify v1.10.1 // indirect
+	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect
 	github.com/gomodule/redigo v1.9.3 // indirect
-	github.com/tdewolff/parse/v2 v2.8.16 // indirect
+	github.com/google/pprof v0.0.0-20230207041349-798e818bf904 // indirect
 	golang.org/x/crypto v0.52.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.37.0 // indirect

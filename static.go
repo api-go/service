@@ -73,7 +73,9 @@ func (ws *WebServer) assetCachePath(namespace, name string, content []byte) stri
 	name = strings.TrimPrefix(pathpkg.Clean("/"+name), "/")
 	// Virtual sites share URL paths and may share modification timestamps.
 	// Include the source scope and bytes, also covering mount replacement.
-	hash := crypto.SHA256([]byte(namespace+"\x00"+name+"\x00"), content)
+	// Bump this policy version whenever compressor options or template safety
+	// rules change; old derived bytes must never survive a policy upgrade.
+	hash := crypto.SHA256([]byte("esbuild-whitespace-v3\x00"+namespace+"\x00"+name+"\x00"), content)
 	return filepath.Join(root, encoding.Hex(hash), filepath.FromSlash(name+".min"))
 }
 

@@ -1,5 +1,18 @@
 # Service Module Test Report
 
+## v1.5.47：JavaScript 与嵌入式 HTML 验证
+
+- TestJavaScriptMinificationPreservesNestedEmptyBranches 通过真实 StaticFS HTTP 响应，分别执行源代码及压缩代码，验证禁止属性、空值允许属性、可信 URI 和自定义元素分支。
+- 保留已有 HTML 模板、声明名称、缓存作用域和预构建 .min 文件测试。
+- `TestJavaScriptMinificationSemanticMatrix` 在 `.js` / `.mjs` HTTP 冷缓存和热缓存中执行源码与响应，验证空分支、ASI、正则、闭包、finally、类、Unicode、BigInt、普通/嵌套/插值/tagged 模板及字符串中的伪 HTML 标记。
+- `TestJavaScriptMinificationInlineScript` 验证默认、`text/javascript`、`module` 三种 HTML 内联脚本均实际压缩且保留属性过滤分支语义。
+- `TestJavaScriptMinificationCacheLifecycle` 覆盖磁盘与 StaticFS 的并发冷缓存、跨 WebServer 实例复用、同时间戳源码替换、非法 JS 原样回退及修复后恢复。
+- `TestJavaScriptMinificationIgnoresPreviousCompressorCache` 写入旧版真实缓存键的错误响应，验证升级压缩器后自动隔离；`TestJavaScriptMinificationCacheWriteFailure` 验证缓存不可写时原样返回源码。
+- 2026-10-16 Service 最终树验证：`GOWORK=off go test -v ./...`、`GOWORK=off go test -race ./...`、`GOWORK=off go test -run '^$' -bench=. ./...`、`GOWORK=off go vet ./...` 通过。测试不依赖 Master、浏览器或第三方服务。
+- `TestJavaScriptMinificationEmbeddedHTMLSafety` 覆盖实体生成插值/反引号/反斜杠、声明式转义表达式、转义反引号、`pre`/`textarea`、行内文字空格、带空格属性、HTML 注释，以及确实缩小模板缩进。冷/热 HTTP 响应均执行断言。
+- 2026-10-16 发布验证：`GOWORK=off go test -v ./...`、完整 race、完整 tests+benchmark、vet 及 `git diff --check` 通过；Redis 使用已有本地服务。Apple M3 Max：Routing 3343 ns/op；IngressDirectGate 2611 ns/op、6431 B/op、32 allocs/op；ProxyWebSocket 36926 ns/op、4972 B/op、19 allocs/op。
+- 导出 API 无变更；`ai/tools/getExports` 不可用，以 `GOWORK=off go doc` 与导出源码核对。
+
 ## v1.5.46 缓存隔离验证
 - TestAutoMinifyIsolatesHostsAndReplacedMounts 覆盖两个主机同路径及替换挂载。
 
