@@ -173,7 +173,7 @@ func (ws *WebServer) processProxy(request *Request, response *Response, logger *
 	app := *proxyToApp
 	path := *proxyToPath
 	logger.Info("proxy", "app", app, "path", path, "host", foundHost)
-	if websocket.IsWebSocketUpgrade(request.Request) {
+	if gohttp.IsWebSocketRequest(request.Request) {
 		ws.proxyWebSocket(request, response, logger, app, path)
 		return true
 	}
@@ -213,7 +213,16 @@ func (ws *WebServer) getHttpClient() *gohttp.Client {
 	if timeout <= 0 {
 		timeout = 30 * time.Second
 	}
-	return gohttp.NewClient(timeout)
+	ws.proxyClientsMu.Lock()
+	if ws.proxyDefaultHTTPClient == nil {
+		ws.proxyDefaultHTTPClient = gohttp.NewClient(timeout)
+		// Proxy users must not share an automatically populated cookie jar.
+		ws.proxyDefaultHTTPClient.GetRawClient().Jar = nil
+	}
+	client = ws.proxyDefaultHTTPClient.Clone()
+	ws.proxyClientsMu.Unlock()
+	client.GetRawClient().Timeout = timeout
+	return client
 }
 
 func (ws *WebServer) checkAuthForProxy(authLevel int, request *Request, response *Response, logger *log.Logger) (bool, any) {
@@ -290,6 +299,7 @@ func (ws *WebServer) ReplaceProxies(host string, rules []ProxyRule) {
 // proxyRelayHeaders preserves ordinary HTTP headers while reconstructing trusted IP metadata.
 func proxyRelayHeaders(request *Request) []string {
 	blocked := proxyHopHeaders(request.Request.Header)
+	blocked[":protocol"] = true
 	for _, key := range []string{"X-Real-Ip", "X-Client-Ip", "X-Forwarded-For"} {
 		blocked[key] = true
 	}
@@ -315,7 +325,7 @@ func proxyHopHeaders(headers http.Header) map[string]bool {
 }
 
 // SetProxyHTTPClient sets the direct URL HTTP proxy transport. WebSocket defaults
-// inherit its TLS and TCP dialing configuration using an independent dialer.
+// inherit its TLS and TCP dialing configuration and automatically negotiate H2/H1.
 func (ws *WebServer) SetProxyHTTPClient(client *gohttp.Client) {
 	ws.proxyClientsMu.Lock()
 	defer ws.proxyClientsMu.Unlock()
@@ -323,7 +333,8 @@ func (ws *WebServer) SetProxyHTTPClient(client *gohttp.Client) {
 }
 
 // SetProxyWebSocketDialer overrides the WebSocket transport without changing
-// ordinary HTTP/2 connections. The configuration is copied; nil restores defaults.
+// ordinary HTTP/2 connections. Overrides use H1; nil restores H2/H1 negotiation.
+// The configuration is copied.
 func (ws *WebServer) SetProxyWebSocketDialer(dialer *websocket.Dialer) {
 	client := gohttp.NewClient(0)
 	client.SetWebSocketDialer(dialer)
@@ -334,4 +345,13 @@ func (ws *WebServer) SetProxyWebSocketDialer(dialer *websocket.Dialer) {
 	ws.proxyClientsMu.Lock()
 	defer ws.proxyClientsMu.Unlock()
 	ws.proxyWebSocketDialer = snapshot
+}
+
+func (ws *WebServer) closeDefaultProxyHTTPClient() {
+	ws.proxyClientsMu.Lock()
+	defer ws.proxyClientsMu.Unlock()
+	if ws.proxyDefaultHTTPClient != nil {
+		ws.proxyDefaultHTTPClient.Destroy()
+		ws.proxyDefaultHTTPClient = nil
+	}
 }

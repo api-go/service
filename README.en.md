@@ -80,3 +80,9 @@ GOWORK=off go vet ./...
 
 [TEST.md](TEST.md) records HTTP execution semantics, embedded template boundaries,
 cache lifecycle, existing HTML bindings and prebuilt asset coverage.
+
+## HTTP/2 WebSocket (v1.5.48)
+
+Ingress supports RFC 8441 when the process starts with GODEBUG=http2xconnect=1 (required by Go/x/net). Upstream automatically prefers H2 for WSS, falling back only when ALPN/SETTINGS lack support. Plain WS stays on H1 unless H2C is explicitly configured. No WebSocketProxy.HTTP2 switch is required. HTTP rejections, certificate failures and timeouts do not trigger fallback. Independent Gorilla proxy dialers preserve their H1 network policy. Default proxy clients share H2 pools and bounded capability caches, without a shared cookie jar; Stop cleans idle default pools.
+
+Depends on published HTTP v1.5.14; standalone checks run with GOWORK=off. TLS measurements and raw results: http/testdata/websocket/20261022-tls-compare.md.

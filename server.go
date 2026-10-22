@@ -114,11 +114,12 @@ type WebServer struct {
 	webAuthCheckers map[int]func(int, *log.Logger, *string, map[string]any, *Request, *Response, *WebServiceOptions) (pass bool, object any)
 
 	// 注入点
-	injectObjects        map[reflect.Type]any
-	proxyClientsMu       sync.RWMutex
-	proxyHTTPClient      *gohttp.Client
-	proxyWebSocketDialer *websocket.Dialer
-	injectFunctions      map[reflect.Type]func() any
+	injectObjects          map[reflect.Type]any
+	proxyClientsMu         sync.RWMutex
+	proxyHTTPClient        *gohttp.Client
+	proxyDefaultHTTPClient *gohttp.Client
+	proxyWebSocketDialer   *websocket.Dialer
+	injectFunctions        map[reflect.Type]func() any
 
 	// 客户端标识
 	usedDeviceIdKey  string
@@ -763,6 +764,7 @@ func (ws *WebServer) closeListeners() {
 func (ws *WebServer) Stop(ctx context.Context) error {
 	ws.lifecycleMu.Lock()
 	defer ws.lifecycleMu.Unlock()
+	defer ws.closeDefaultProxyHTTPClient()
 
 	ws.running = false
 	ws.assetGraph.stop()

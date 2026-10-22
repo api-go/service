@@ -186,3 +186,19 @@ BenchmarkRouting-16              	  381876	      3125 ns/op
 BenchmarkIngressDirectGate-16    	  530913	      2295 ns/op	    6433 B/op	      32 allocs/op
 BenchmarkProxyWebSocket-16       	   31534	     36531 ns/op	  28.03 MB/s	    5000 B/op	      19 allocs/op
 ```
+
+## v1.5.48 HTTP/2 WebSocket 发布验证（2026-10-23）
+
+`TestProxyUsesHTTP2UpstreamAndWSSWithPrivateCA` 在默认启动配置严格验证 WSS 回退 HTTP/1.1，在启动时设置 `GODEBUG=http2xconnect=1` 后严格验证 RFC 8441 HTTP/2；两种模式均验证普通请求使用 HTTP/2、私有 CA 信任、握手响应头及真实消息接收，不跳过该测试。
+
+2026-10-22 本地工作区验证：默认模式与启动 `GODEBUG=http2xconnect=1` 模式各自的 targeted、全量 test、vet、race、benchmark 均通过。Apple M3 Max 本次 Routing / IngressDirectGate / ProxyWebSocket：默认 4202 / 2401 / 28317 ns/op，H2 模式 4160 / 2406 / 29086 ns/op；仅为本机样本，不代表协议性能对比。
+
+依赖已发布 HTTP v1.5.14；独立发布验证设置 GOWORK=off，不使用相邻模块源码。
+
+覆盖 H1→H1/H2、H2→H1/H2、原生路由、文本/二进制、认证拒绝、正常关闭、多值 Cookie、Host/认证头透传、真实 H2C 监听关闭及 1001 通知。上游默认智能选择，无新增 WebSocketProxy.HTTP2 配置；默认代理池复用能力缓存与 H2 连接，禁止跨用户 Cookie Jar。API 使用 go doc -all 与导出源码核对。
+
+2026-10-22 / Apple M3 Max 本轮基准：Routing 3307 ns/op，IngressDirectGate 2527 ns/op，ProxyWebSocket 43271 ns/op。HTTP 客户端新增同负载 H1/H2 TLS 对照数据见相邻 http/testdata/websocket/20261022-tls-compare.md。
+
+2026-10-23：Redis 既有服务 PONG，未启停用户 Redis；`GOWORK=off` 默认和启动 `GODEBUG=http2xconnect=1` 两种模式的全量 test-v/count1、vet、race/count1、benchmark 均通过。`ai/tools/getExports` 不可用，使用 `GOWORK=off go doc -all .` 与导出源码核对，公开 Go API 未新增或移除；原 `Upgrade`、代理与生命周期接口保持兼容。
+
+Apple M3 Max 本次 Routing / IngressDirectGate / ProxyWebSocket：默认 4015 / 2434 / 36905 ns/op，H2 启动模式 3991 / 2467 / 35626 ns/op；此基准不构成 H1/H2 对照结论。

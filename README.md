@@ -12,7 +12,7 @@
 - **路由反射**: 自动解析函数参数，支持 `*Request`, `*Response`, `*log.Logger` 及自定义结构体自动注入。
 - **自动校验**: 集成 `verify` 引擎，通过 Struct Tag 实现入参合法性自动检查。
 - **功能闭环**: 内置静态文件服务、基础 WebSocket 注册、URL 重写、反向代理（对接 Discover）。
-- **代理协议**: 普通请求保留 HTTP/2 / H2C 协议选择；WebSocket 自动在鉴权后使用专用 HTTP/1.1 连接，支持 Cookie、Origin、子协议、双向数据和控制帧，并纳入停机管理。不实现 RFC 8441。Discover `Open` 返回握手响应，代理可保留上游 Set-Cookie 和拒绝状态/正文。
+- **代理协议**: 普通请求保留 HTTP/2 / H2C 协议选择；WebSocket 在鉴权后独立协商 HTTP/1.1 或 RFC 8441 HTTP/2，支持 Cookie、Origin、子协议、双向数据和控制帧，并纳入停机管理。Discover `Open` 返回握手响应，代理可保留上游 Set-Cookie 和拒绝状态/正文。
 - **可控压缩**: `AutoMinify` 优先提供同目录 `.min.*` 预构建资源；运行时压缩保留声明式 HTML 结构、属性引号和 JavaScript 声明名称。JavaScript 使用 esbuild 的空白压缩，不启用语法折叠或标识符改名，避免改变嵌套条件分支；压缩器版本边界参与缓存键。 HTML 内联普通脚本及 `type="module"` 共用该压缩器。`/*html*/` 优化仅作用于解析器识别的无 tag、无 JS 插值模板；字符串、注释、正则和其他模板保持 JS 语义。HTML 压缩保留注释、文档标签及默认属性值；压缩结果若引入 JS 插值、打断模板或改变 JS 转义，则保留该模板原文。模板预解析不支持的语法跳过 HTML 优化，仍由 esbuild 压缩 JS；压缩失败或缓存不可写时原样提供源码。
   自动压缩缓存按资源作用域、路径及源内容隔离，站点同路径和挂载替换不会复用其他源码的缓存。
 - **统一 ID 体系**: 整合 Redis 集群版 ID 生成器，全局统一生成 `RequestId` 与 `LogTraceID`。
@@ -232,4 +232,10 @@ WebSocketProxy:
 
 时间单位为毫秒。握手默认使用 RedirectTimeout（未设置时 30 秒）；写入 0 表示 30 秒，负值取消限制；空闲 0 表示允许长期静默，正值对两侧分别检查，数据及 Ping/Pong 续期；消息大小 0 不限制，正值同时约束两侧。代理转发心跳，不主动生成周期 Ping；启用空闲限制时应用应定期发送心跳。压缩默认关闭，两段连接独立协商。转发保留消息语义，不保证原始帧分片结构。
 
-Discover 使用新 Open 接口保留握手结果。拒绝正文最多保留 1024 字节并归一化长度；连接日志记录握手状态、节点、时长、双向消息/字节、关闭码及结束原因。依赖已发布 HTTP v1.5.12 与 Discover v1.5.17。
+Discover 使用新 Open 接口保留握手结果。拒绝正文最多保留 1024 字节并归一化长度；连接日志记录握手状态、节点、时长、双向消息/字节、关闭码及结束原因。依赖已发布 HTTP v1.5.14 与 Discover v1.5.17。
+
+## HTTP/2 WebSocket（v1.5.48）
+
+原生 WebSocket 路由和代理入口支持 RFC 8441；Go/x/net 的服务端声明仍需启动环境 `GODEBUG=http2xconnect=1`。上游默认自动选择：WSS 优先 H2，ALPN/SETTINGS 不支持时兼容 H1；普通 WS 直接 H1，显式注入 NewClientH2C 可使用 H2C。认证拒绝、证书错误、超时等不触发协议降级。不再增加 WebSocketProxy.HTTP2 配置。默认代理客户端共享连接池与有界能力缓存，Cookie Jar 关闭；Stop 清理其空闲池。显式 SetProxyWebSocketDialer 保持 H1 网络策略。
+
+本版本依赖已发布 HTTP v1.5.14，使用 GOWORK=off 独立验证。TLS 对照方法与原始数据见 http/testdata/websocket/20261022-tls-compare.md。

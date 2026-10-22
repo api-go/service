@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -16,19 +17,25 @@ import (
 )
 
 func TestProxyUsesHTTP2UpstreamAndWSSWithPrivateCA(t *testing.T) {
+	// The server advertises extended CONNECT only when enabled at process startup.
+	// Otherwise a WSS client must retain its HTTP/1.1 compatibility path.
+	wantWebSocketProtocol := 1
+	if strings.Contains(os.Getenv("GODEBUG"), "http2xconnect=1") {
+		wantWebSocketProtocol = 2
+	}
 	upstream := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !websocket.IsWebSocketUpgrade(r) {
+		if !gohttp.IsWebSocketRequest(r) {
 			if r.ProtoMajor != 2 {
 				t.Errorf("ordinary upstream: %s", r.Proto)
 			}
 			_, _ = io.WriteString(w, "h2")
 			return
 		}
-		if r.ProtoMajor != 1 {
-			t.Errorf("WS upstream: %s", r.Proto)
+		if r.ProtoMajor != wantWebSocketProtocol {
+			t.Errorf("WS upstream: %s, want HTTP/%d", r.Proto, wantWebSocketProtocol)
 		}
 		upgrader := websocket.Upgrader{}
-		conn, err := upgrader.Upgrade(w, r, http.Header{"X-Handshake": {"preserved"}})
+		conn, err := gohttp.UpgradeWebSocket(&upgrader, w, r, http.Header{"X-Handshake": {"preserved"}})
 		if err != nil {
 			t.Error(err)
 			return

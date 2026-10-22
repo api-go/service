@@ -30,7 +30,8 @@ func proxyWebSocketWritePool(size int) *sync.Pool {
 }
 
 func (ws *WebServer) proxyWebSocketClient(settings WebSocketProxyConfig) *gohttp.Client {
-	client := ws.getHttpClient().Clone()
+	base := ws.getHttpClient()
+	client := base.Clone()
 	timeout := settings.HandshakeTimeout
 	if timeout <= 0 {
 		timeout = ws.Config.RedirectTimeout
@@ -42,27 +43,38 @@ func (ws *WebServer) proxyWebSocketClient(settings WebSocketProxyConfig) *gohttp
 	ws.proxyClientsMu.RLock()
 	custom := ws.proxyWebSocketDialer
 	ws.proxyClientsMu.RUnlock()
-	if custom != nil {
-		client.SetWebSocketDialer(custom)
-	}
-	dialer := client.WebSocketDialer()
-	// Proxy clients must not share upstream cookie jars across ingress users.
+
+	// Cookie jars must never collect cookies across ingress users.
 	client.GetRawClient().Jar = nil
-	dialer.Jar = nil
-	if settings.Compression {
-		dialer.EnableCompression = true
+	if custom != nil {
+		client.SetWebSocketHTTP2(false)
+		client.SetWebSocketDialer(custom)
+		dialer := client.WebSocketDialer()
+		dialer.Jar = nil
+		if settings.Compression {
+			dialer.EnableCompression = true
+		}
+		if dialer.WriteBufferPool == nil {
+			dialer.WriteBufferPool = proxyWebSocketWritePool(dialer.WriteBufferSize)
+		}
+		client.SetWebSocketDialer(dialer)
+	} else {
+		dialer := client.WebSocketDialer()
+		pool := dialer.WriteBufferPool
+		if pool == nil {
+			pool = proxyWebSocketWritePool(dialer.WriteBufferSize)
+		}
+		client.SetWebSocketOptions(settings.Compression || dialer.EnableCompression, pool)
 	}
-	if dialer.WriteBufferPool == nil {
-		dialer.WriteBufferPool = proxyWebSocketWritePool(dialer.WriteBufferSize)
-	}
-	client.SetWebSocketDialer(dialer)
+
 	return client
 }
 
-// WebSocket handshakes use independent HTTP/1.1 connections. Ordinary requests
-// keep their HTTP/2 transport. Authentication has already run in processProxy.
+// Authentication has already run in processProxy. Each leg independently
+// negotiates HTTP/1.1 or RFC 8441 framing.
 func (ws *WebServer) proxyWebSocket(request *Request, response *Response, logger *log.Logger, app, path string) {
-	if request.Method != http.MethodGet {
+	extended := request.ProtoMajor == 2 && gohttp.IsWebSocketRequest(request.Request)
+	if request.Method != http.MethodGet && !extended {
 		response.Writer.Header().Set("Allow", http.MethodGet)
 		response.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -74,7 +86,7 @@ func (ws *WebServer) proxyWebSocket(request *Request, response *Response, logger
 	}
 	challenge := request.Request.Header.Get("Sec-WebSocket-Key")
 	key, keyError := goencoding.UnBase64(challenge)
-	if keyError != nil || len(key) != 16 || goencoding.Base64(key) != challenge {
+	if !extended && (keyError != nil || len(key) != 16 || goencoding.Base64(key) != challenge) || extended && (challenge != "" || request.Request.Header.Get("Sec-WebSocket-Accept") != "") {
 		response.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -192,12 +204,17 @@ func (ws *WebServer) proxyWebSocket(request *Request, response *Response, logger
 	if protocol := upstream.Conn.Subprotocol(); protocol != "" {
 		upgrader.Subprotocols = []string{protocol}
 	}
-	downstream, err := upgrader.Upgrade(response.Writer, request.Request, responseHeaders)
+	response.Writer.Header().Del(ws.usedDeviceIdKey)
+	response.Writer.Header().Del(ws.usedSessionIdKey)
+	downstream, err := gohttp.UpgradeWebSocket(&upgrader, response.Writer, request.Request, responseHeaders)
 	if err != nil {
 		logger.Error("websocket proxy client upgrade failed", "node", node, "error", err.Error())
 		return
 	}
 	response.Code = http.StatusSwitchingProtocols
+	if extended {
+		response.Code = http.StatusOK
+	}
 	response.changed = true
 	response.headerWritten = true
 	tracked := &WebSocketConn{Conn: downstream}
@@ -209,7 +226,7 @@ func (ws *WebServer) proxyWebSocket(request *Request, response *Response, logger
 	defer tracked.Close()
 	results, reason := relayProxyWebSocket(request.Context(), upstream.Conn, downstream, settings)
 	_ = tracked.Close()
-	logger.Info("websocket proxy closed", "app", app, "path", path, "node", node, "status", http.StatusSwitchingProtocols, "duration", time.Since(started), "reason", reason, "upstreamBytes", results[0].bytes, "downstreamBytes", results[1].bytes, "upstreamMessages", results[0].messages, "downstreamMessages", results[1].messages, "upstreamClose", results[0].closeCode, "downstreamClose", results[1].closeCode, "upstreamError", proxyFrameError(results[0].err), "downstreamError", proxyFrameError(results[1].err))
+	logger.Info("websocket proxy closed", "app", app, "path", path, "node", node, "status", response.Code, "duration", time.Since(started), "reason", reason, "upstreamBytes", results[0].bytes, "downstreamBytes", results[1].bytes, "upstreamMessages", results[0].messages, "downstreamMessages", results[1].messages, "upstreamClose", results[0].closeCode, "downstreamClose", results[1].closeCode, "upstreamError", proxyFrameError(results[0].err), "downstreamError", proxyFrameError(results[1].err))
 }
 
 type proxyFrameResult struct {

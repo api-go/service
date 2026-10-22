@@ -1,6 +1,7 @@
 package service
 
 import (
+	gohttp "apigo.cc/go/http"
 	"apigo.cc/go/jsmod"
 	"apigo.cc/go/log"
 	"context"
@@ -84,10 +85,16 @@ func (c *WebSocketConn) Close() error {
 
 // Upgrade 将 HTTP 请求升级为 WebSocket 连接
 func Upgrade(response *Response, request *Request) (*WebSocketConn, error) {
-	conn, err := defaultUpgrader.Upgrade(response.Writer, request.Request, nil)
+	conn, err := gohttp.UpgradeWebSocket(defaultUpgrader, response.Writer, request.Request, nil)
 	if err != nil {
 		return nil, jsmod.MakeError(err)
 	}
+	response.Code = http.StatusSwitchingProtocols
+	if request.ProtoMajor == 2 {
+		response.Code = http.StatusOK
+	}
+	response.changed = true
+	response.headerWritten = true
 	wsConn := &WebSocketConn{Conn: conn}
 	if response.server != nil && !response.server.registerWebSocket(wsConn) {
 		_ = conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseGoingAway, "service stopping"), time.Now().Add(time.Second))
