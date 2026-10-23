@@ -1,3 +1,6 @@
+## [v1.5.49] - 2026-10-23
+- Integrate HTTP external address snapshots and independent proxy trust; normalize transparent relay and HTTPS URL/redirect handling.
+
 # Changelog
 
 ## [v1.5.48] - 2026-10-23

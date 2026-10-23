@@ -38,27 +38,28 @@ type assetPatternState struct {
 }
 
 type WebServer struct {
-	clientIPPolicy      atomic.Pointer[compiledClientIPPolicy]
-	requestGate         atomic.Pointer[requestGateEntry]
-	managedPolicies     atomic.Pointer[hostPolicyRegistry]
-	certificateProvider atomic.Pointer[certificateProviderEntry]
-	Config              ServiceConfig
-	server              *http.Server
-	listener            net.Listener
-	servers             []*http.Server
-	listeners           []net.Listener
-	Addr                string
-	Addrs               []string
-	listenConfigs       []listenConfig
-	useDiscover         bool
-	discoverStarted     bool
-	logger              *log.Logger
-	lifecycleMu         sync.Mutex
-	lifecycleCtx        context.Context
-	lifecycleCancel     context.CancelFunc
-	tlsMu               sync.RWMutex
-	tlsCertificates     map[string]*tls.Certificate
-	tlsFallback         *tls.Certificate
+	externalAddressPolicy atomic.Pointer[gohttp.ExternalAddressResolver]
+	clientIPPolicy        atomic.Pointer[compiledClientIPPolicy]
+	requestGate           atomic.Pointer[requestGateEntry]
+	managedPolicies       atomic.Pointer[hostPolicyRegistry]
+	certificateProvider   atomic.Pointer[certificateProviderEntry]
+	Config                ServiceConfig
+	server                *http.Server
+	listener              net.Listener
+	servers               []*http.Server
+	listeners             []net.Listener
+	Addr                  string
+	Addrs                 []string
+	listenConfigs         []listenConfig
+	useDiscover           bool
+	discoverStarted       bool
+	logger                *log.Logger
+	lifecycleMu           sync.Mutex
+	lifecycleCtx          context.Context
+	lifecycleCancel       context.CancelFunc
+	tlsMu                 sync.RWMutex
+	tlsCertificates       map[string]*tls.Certificate
+	tlsFallback           *tls.Certificate
 
 	// 运行时状态
 	serverId   string
@@ -405,6 +406,11 @@ func (ws *WebServer) Start(ctx context.Context, logger *log.Logger) error {
 			return err
 		}
 	}
+	if len(ws.Config.ExternalAddress.TrustedProxies) > 0 || ws.externalAddressPolicy.Load() == nil {
+		if err := ws.SetExternalAddressPolicy(ws.Config.ExternalAddress); err != nil {
+			return err
+		}
+	}
 	ws.ApplyConfig()
 	if ws.Config.AutoReversion {
 		ws.assetGraph.start()
@@ -616,6 +622,7 @@ func listenConfigKey(config listenConfig) string {
 
 func cloneServiceConfig(config ServiceConfig) ServiceConfig {
 	cloned := config
+	cloned.ExternalAddress.TrustedProxies = append([]string(nil), config.ExternalAddress.TrustedProxies...)
 	cloned.ClientIP.TrustedProxies = append([]string(nil), config.ClientIP.TrustedProxies...)
 	cloned.Calls = make(map[string]CallConfig, len(config.Calls))
 	for name, call := range config.Calls {
@@ -844,6 +851,10 @@ func (ws *WebServer) Reload() error {
 			return err
 		}
 	}
+	nextExternalAddress, err := gohttp.NewExternalAddressResolver(nextConfig.ExternalAddress)
+	if err != nil {
+		return err
+	}
 	ws.Config = nextConfig
 	listenStr := strings.TrimSpace(ws.Config.Listen)
 	configs := append([]listenConfig(nil), ws.listenConfigs...)
@@ -872,6 +883,7 @@ func (ws *WebServer) Reload() error {
 		ws.tlsMu.Unlock()
 		return err
 	}
+	ws.externalAddressPolicy.Store(nextExternalAddress)
 	if nextClientIP != nil {
 		ws.clientIPPolicy.Store(nextClientIP)
 	}

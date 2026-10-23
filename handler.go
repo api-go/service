@@ -13,6 +13,7 @@ import (
 
 	"apigo.cc/go/cast"
 	"apigo.cc/go/discover"
+	gohttp "apigo.cc/go/http"
 	"apigo.cc/go/log"
 	"apigo.cc/go/timer"
 )
@@ -23,6 +24,18 @@ type RouteHandler struct {
 }
 
 func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	ws := rh.ws
+	if ws == nil {
+		ws = DefaultServer
+	}
+	if r.Header == nil {
+		r.Header = make(http.Header)
+	}
+	address := ws.externalAddressPolicy.Load().Prepare(r)
+	if err := address.RelayHeaders(r.Header); err != nil {
+		http.Error(w, "invalid external address", http.StatusBadRequest)
+		return
+	}
 	if r.URL != nil && r.URL.Path == discover.HealthPath {
 		discover.PrepareRequest(r)
 		discover.HealthHandler().ServeHTTP(w, r)
@@ -30,10 +43,6 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.URL != nil {
 		r.RequestURI = r.URL.RequestURI()
-	}
-	ws := rh.ws
-	if ws == nil {
-		ws = DefaultServer
 	}
 	atomic.AddInt64(&rh.webRequestingNum, 1)
 	defer atomic.AddInt64(&rh.webRequestingNum, -1)
@@ -156,8 +165,8 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if request.hostPolicy != nil {
 		forceHTTPS = request.hostPolicy.forceHTTPS
 	}
-	if r.TLS == nil && forceHTTPS {
-		http.Redirect(w, r, "https://"+ws.httpsRedirectHost(r.Host)+r.URL.RequestURI(), http.StatusPermanentRedirect)
+	if !gohttp.RequestExternalAddress(r).IsHTTPS() && forceHTTPS {
+		http.Redirect(w, r, "https://"+ws.httpsRedirectHost(address.Host)+r.URL.RequestURI(), http.StatusPermanentRedirect)
 		return
 	}
 

@@ -2,6 +2,7 @@ package service
 
 import (
 	"apigo.cc/go/discover"
+	gohttp "apigo.cc/go/http"
 	"io"
 	"mime/multipart"
 	"net"
@@ -179,15 +180,11 @@ func (r *Request) Get(key string) any {
 
 // MakeUrl 根据当前请求构建完整 URL
 func (r *Request) MakeUrl(path string) string {
-	scheme := r.Header().Get(discover.HeaderScheme)
-	if scheme == "" {
-		scheme = "http"
+	address := r.ExternalAddress()
+	if address.Err != nil {
+		return ""
 	}
-	host := r.Header().Get(discover.HeaderHost)
-	if host == "" {
-		host = r.Host
-	}
-	return scheme + "://" + host + path
+	return address.Origin + path
 }
 
 // DeviceId 获取设备 ID
@@ -240,4 +237,9 @@ func normalizedClientIP(value string) string {
 		return ip.String()
 	}
 	return ""
+}
+
+// ExternalAddress returns the ingress-pinned browser-facing address, not the RPC target.
+func (r *Request) ExternalAddress() gohttp.ExternalAddress {
+	return gohttp.RequestExternalAddress(r.Request)
 }

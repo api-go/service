@@ -86,3 +86,11 @@ cache lifecycle, existing HTML bindings and prebuilt asset coverage.
 Ingress supports RFC 8441 when the process starts with GODEBUG=http2xconnect=1 (required by Go/x/net). Upstream automatically prefers H2 for WSS, falling back only when ALPN/SETTINGS lack support. Plain WS stays on H1 unless H2C is explicitly configured. No WebSocketProxy.HTTP2 switch is required. HTTP rejections, certificate failures and timeouts do not trigger fallback. Independent Gorilla proxy dialers preserve their H1 network policy. Default proxy clients share H2 pools and bounded capability caches, without a shared cookie jar; Stop cleans idle default pools.
 
 Depends on published HTTP v1.5.14; standalone checks run with GOWORK=off. TLS measurements and raw results: http/testdata/websocket/20261022-tls-compare.md.
+
+## External addressing / 外部地址（v1.5.49）
+
+`ServiceConfig.ExternalAddress` and `WebServer.SetExternalAddressPolicy(http.ExternalAddressPolicy)` configure explicit direct-peer trust independently of ClientIPPolicy. Default trusts no forwarding headers, including legacy Request-ID requests. Configure every receiving proxy hop explicitly; no private/loopback trust is implicit.
+
+Ingress pins HTTP external addressing before health, gates, redirects, proxy and business handling. Invalid trusted metadata returns 400. `Request.ExternalAddress()` exposes the result; `MakeUrl` uses its Origin and actual TLS for direct requests (returns empty on invalid addressing). HTTPS redirects use the same external scheme, avoiding loops after TLS termination.
+
+Fixed URL, discovery and WebSocket transparent proxies overwrite both supported address-header pairs from the snapshot and retain Origin unchanged. RPC callers carry browser context separately from the internal destination and credentials. Never use X-Host/X-Scheme raw values for security decisions. Configure forwarding trust explicitly when upgrading services that previously trusted these headers implicitly. Forwarded lists are unsupported; each proxy writes a single complete pair.

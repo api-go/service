@@ -239,3 +239,11 @@ Discover 使用新 Open 接口保留握手结果。拒绝正文最多保留 1024
 原生 WebSocket 路由和代理入口支持 RFC 8441；Go/x/net 的服务端声明仍需启动环境 `GODEBUG=http2xconnect=1`。上游默认自动选择：WSS 优先 H2，ALPN/SETTINGS 不支持时兼容 H1；普通 WS 直接 H1，显式注入 NewClientH2C 可使用 H2C。认证拒绝、证书错误、超时等不触发协议降级。不再增加 WebSocketProxy.HTTP2 配置。默认代理客户端共享连接池与有界能力缓存，Cookie Jar 关闭；Stop 清理其空闲池。显式 SetProxyWebSocketDialer 保持 H1 网络策略。
 
 本版本依赖已发布 HTTP v1.5.14，使用 GOWORK=off 独立验证。TLS 对照方法与原始数据见 http/testdata/websocket/20261022-tls-compare.md。
+
+## External addressing / 外部地址（v1.5.49）
+
+`ServiceConfig.ExternalAddress` and `WebServer.SetExternalAddressPolicy(http.ExternalAddressPolicy)` configure explicit direct-peer trust independently of ClientIPPolicy. Default trusts no forwarding headers, including legacy Request-ID requests. Configure every receiving proxy hop explicitly; no private/loopback trust is implicit.
+
+Ingress pins HTTP external addressing before health, gates, redirects, proxy and business handling. Invalid trusted metadata returns 400. `Request.ExternalAddress()` exposes the result; `MakeUrl` uses its Origin and actual TLS for direct requests (returns empty on invalid addressing). HTTPS redirects use the same external scheme, avoiding loops after TLS termination.
+
+Fixed URL, discovery and WebSocket transparent proxies overwrite both supported address-header pairs from the snapshot and retain Origin unchanged. RPC callers carry browser context separately from the internal destination and credentials. Never use X-Host/X-Scheme raw values for security decisions. Configure forwarding trust explicitly when upgrading services that previously trusted these headers implicitly. Forwarded lists are unsupported; each proxy writes a single complete pair.

@@ -298,20 +298,22 @@ func (ws *WebServer) ReplaceProxies(host string, rules []ProxyRule) {
 
 // proxyRelayHeaders preserves ordinary HTTP headers while reconstructing trusted IP metadata.
 func proxyRelayHeaders(request *Request) []string {
-	blocked := proxyHopHeaders(request.Request.Header)
+	sourceHeaders := request.Request.Header.Clone()
+	_ = request.ExternalAddress().RelayHeaders(sourceHeaders)
+	blocked := proxyHopHeaders(sourceHeaders)
 	blocked[":protocol"] = true
 	for _, key := range []string{"X-Real-Ip", "X-Client-Ip", "X-Forwarded-For"} {
 		blocked[key] = true
 	}
 	headers := make([]string, 0, len(request.Request.Header)*2+6)
-	for key, values := range request.Request.Header {
+	for key, values := range sourceHeaders {
 		if !blocked[http.CanonicalHeaderKey(key)] {
 			for _, value := range values {
 				headers = append(headers, key, value)
 			}
 		}
 	}
-	return append(headers, "Host", request.Host, "X-Real-IP", request.ClientIp(), "X-Client-IP", request.ClientIp(), "X-Forwarded-For", request.ClientIp())
+	return append(headers, "Host", request.ExternalAddress().Host, "X-Real-IP", request.ClientIp(), "X-Client-IP", request.ClientIp(), "X-Forwarded-For", request.ClientIp())
 }
 
 func proxyHopHeaders(headers http.Header) map[string]bool {

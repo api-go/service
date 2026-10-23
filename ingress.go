@@ -1,6 +1,7 @@
 package service
 
 import (
+	gohttp "apigo.cc/go/http"
 	"fmt"
 	"net"
 	"net/http"
@@ -129,4 +130,15 @@ func RelayClientIP(request *Request) {
 		request.Request.Header.Set("X-Real-IP", ip)
 		request.Request.Header.Set("X-Client-Ip", ip)
 	}
+}
+
+// SetExternalAddressPolicy atomically replaces direct-peer address trust without
+// inheriting ClientIPPolicy legacy Request-ID behavior. Existing snapshots stay fixed.
+func (ws *WebServer) SetExternalAddressPolicy(policy gohttp.ExternalAddressPolicy) error {
+	resolver, err := gohttp.NewExternalAddressResolver(policy)
+	if err != nil {
+		return err
+	}
+	ws.externalAddressPolicy.Store(resolver)
+	return nil
 }

@@ -202,3 +202,11 @@ BenchmarkProxyWebSocket-16       	   31534	     36531 ns/op	  28.03 MB/s	    500
 2026-10-23：Redis 既有服务 PONG，未启停用户 Redis；`GOWORK=off` 默认和启动 `GODEBUG=http2xconnect=1` 两种模式的全量 test-v/count1、vet、race/count1、benchmark 均通过。`ai/tools/getExports` 不可用，使用 `GOWORK=off go doc -all .` 与导出源码核对，公开 Go API 未新增或移除；原 `Upgrade`、代理与生命周期接口保持兼容。
 
 Apple M3 Max 本次 Routing / IngressDirectGate / ProxyWebSocket：默认 4015 / 2434 / 36905 ns/op，H2 启动模式 3991 / 2467 / 35626 ns/op；此基准不构成 H1/H2 对照结论。
+
+## External ingress coverage (2026-10-23)
+- Direct HTTP/TLS MakeUrl, legacy-ID spoof rejection, explicit peer trust, malformed trusted metadata, concurrent multi-hop forwarding, Origin retention and no HTTPS redirect loop.
+- Full go test -v ./... and go test -bench=. ./...; API review via go doc/exported sources (getExports unavailable).
+
+- Additional H2C discovery proxy test verifies HTTPS metadata and unchanged Origin through internal cleartext transport. Temporary replace validated against the real DL Gateway before release. Release baseline: HTTP v1.5.15 / Discover v1.5.18, GOWORK=off, no replace.
+
+- Released-dependency benchmark (Apple M3 Max): routing 159.8 ns/op; ingress direct gate 3553 ns/op, 6865 B/op, 43 allocs/op; WebSocket proxy 38836 ns/op, 26.37 MB/s.

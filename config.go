@@ -1,5 +1,7 @@
 package service
 
+import gohttp "apigo.cc/go/http"
+
 // CertSet SSL 证书配置
 type CertSet struct {
 	CertFile string
@@ -28,6 +30,7 @@ type WebSocketProxyConfig struct {
 
 // ServiceConfig 核心服务配置
 type ServiceConfig struct {
+	ExternalAddress               gohttp.ExternalAddressPolicy // 独立信任直接上游；默认不信任转发地址
 	WebSocketProxy                WebSocketProxyConfig
 	ClientIP                      ClientIPPolicy        // 空模式保留内部兼容；Gateway 使用 direct/trusted
 	App                           string                // 应用名称。优先从环境变量 DISCOVER_APP 获取，若为空则自动通过代码检测。
