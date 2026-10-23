@@ -87,10 +87,14 @@ Ingress supports RFC 8441 when the process starts with GODEBUG=http2xconnect=1 (
 
 Depends on published HTTP v1.5.14; standalone checks run with GOWORK=off. TLS measurements and raw results: http/testdata/websocket/20261022-tls-compare.md.
 
-## External addressing / 外部地址（v1.5.49）
+## External addressing / 外部地址（v1.5.50）
 
-`ServiceConfig.ExternalAddress` and `WebServer.SetExternalAddressPolicy(http.ExternalAddressPolicy)` configure explicit direct-peer trust independently of ClientIPPolicy. Default trusts no forwarding headers, including legacy Request-ID requests. Configure every receiving proxy hop explicitly; no private/loopback trust is implicit.
+`ServiceConfig.ExternalAddress` and `WebServer.SetExternalAddressPolicy(http.ExternalAddressPolicy)` configure explicit direct-peer trust independently of ClientIPPolicy. Default behavior (v1.5.50) preserves the existing Request-ID internal relay convention: first ingress without an ID uses actual TLS/Host, subsequent controlled hops with an incoming ID retain external metadata. No per-hop configuration is needed.
 
 Ingress pins HTTP external addressing before health, gates, redirects, proxy and business handling. Invalid trusted metadata returns 400. `Request.ExternalAddress()` exposes the result; `MakeUrl` uses its Origin and actual TLS for direct requests (returns empty on invalid addressing). HTTPS redirects use the same external scheme, avoiding loops after TLS termination.
 
-Fixed URL, discovery and WebSocket transparent proxies overwrite both supported address-header pairs from the snapshot and retain Origin unchanged. RPC callers carry browser context separately from the internal destination and credentials. Never use X-Host/X-Scheme raw values for security decisions. Configure forwarding trust explicitly when upgrading services that previously trusted these headers implicitly. Forwarded lists are unsupported; each proxy writes a single complete pair.
+Fixed URL, discovery and WebSocket transparent proxies overwrite both supported address-header pairs from the snapshot and retain Origin unchanged. RPC callers carry browser context separately from the internal destination and credentials. Never use X-Host/X-Scheme raw values for security decisions. Optional Mode direct always uses the connection; Mode trusted enforces explicitly configured direct-peer addresses. Forwarded lists are unsupported; each proxy writes a single complete pair.
+
+## 默认可用 / Default internal relay (v1.5.50)
+
+Service prepares external addressing before generating a missing Request-ID. This preserves outer HTTPS and MakeUrl across fixed/discovery/H2C/WebSocket proxy hops without extra configuration. It does not change RPC destinations or credentials. Optional `ExternalAddress.Mode` supports legacy (default), direct or trusted; proxy addresses without Mode select trusted. Public Gateway boundaries explicitly use direct by default. Released dependencies: HTTP v1.5.16 and Discover v1.5.19; no local replace.

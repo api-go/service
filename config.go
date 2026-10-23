@@ -30,7 +30,7 @@ type WebSocketProxyConfig struct {
 
 // ServiceConfig 核心服务配置
 type ServiceConfig struct {
-	ExternalAddress               gohttp.ExternalAddressPolicy // 独立信任直接上游；默认不信任转发地址
+	ExternalAddress               gohttp.ExternalAddressPolicy // 默认按已有 Request-ID 续传外部地址；可选 direct/trusted 增强
 	WebSocketProxy                WebSocketProxyConfig
 	ClientIP                      ClientIPPolicy        // 空模式保留内部兼容；Gateway 使用 direct/trusted
 	App                           string                // 应用名称。优先从环境变量 DISCOVER_APP 获取，若为空则自动通过代码检测。

@@ -210,3 +210,11 @@ Apple M3 Max 本次 Routing / IngressDirectGate / ProxyWebSocket：默认 4015 /
 - Additional H2C discovery proxy test verifies HTTPS metadata and unchanged Origin through internal cleartext transport. Temporary replace validated against the real DL Gateway before release. Release baseline: HTTP v1.5.15 / Discover v1.5.18, GOWORK=off, no replace.
 
 - Released-dependency benchmark (Apple M3 Max): routing 159.8 ns/op; ingress direct gate 3553 ns/op, 6865 B/op, 43 allocs/op; WebSocket proxy 38836 ns/op, 26.37 MB/s.
+
+## v1.5.50 default relay validation
+- No proxy configuration: first HTTPS ingress overwrites client address metadata; multiple internal HTTP hops retain HTTPS/Origin; concurrent chains stay isolated. Default MakeUrl honors incoming Request-ID context, while missing-ID ingress uses the connection before creating an ID. H2C discovery proxy preserves the same context.
+- Optional direct/trusted policies remain tested. GOWORK=off with explicit ../http and ../discover replacements, not a release verification.
+
+- Development validation passed: GOWORK=off go test -v ./..., go test -bench=. ./..., go test -race ./... and go vet ./.... Apple M3 Max: Routing 155.5 ns/op; direct gate 3360 ns/op; WebSocket proxy 38062 ns/op, 26.90 MB/s. HTTP is tested independently; downstream modules use documented explicit local replace mappings.
+
+- v1.5.50 发布复验：HTTP v1.5.16、Discover v1.5.19 正式依赖，GOWORK=off、无 replace；全量测试与 benchmark 通过。getExports 不可用，API 用 go doc -all 与导出源码核对。

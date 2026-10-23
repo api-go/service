@@ -133,7 +133,8 @@ func RelayClientIP(request *Request) {
 }
 
 // SetExternalAddressPolicy atomically replaces direct-peer address trust without
-// inheriting ClientIPPolicy legacy Request-ID behavior. Existing snapshots stay fixed.
+// changing ClientIPPolicy. Default uses the existing Request-ID relay convention;
+// direct/trusted modes are optional enhancements. Existing snapshots stay fixed.
 func (ws *WebServer) SetExternalAddressPolicy(policy gohttp.ExternalAddressPolicy) error {
 	resolver, err := gohttp.NewExternalAddressResolver(policy)
 	if err != nil {

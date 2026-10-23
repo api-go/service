@@ -406,7 +406,7 @@ func (ws *WebServer) Start(ctx context.Context, logger *log.Logger) error {
 			return err
 		}
 	}
-	if len(ws.Config.ExternalAddress.TrustedProxies) > 0 || ws.externalAddressPolicy.Load() == nil {
+	if ws.Config.ExternalAddress.Mode != "" || len(ws.Config.ExternalAddress.TrustedProxies) > 0 || ws.externalAddressPolicy.Load() == nil {
 		if err := ws.SetExternalAddressPolicy(ws.Config.ExternalAddress); err != nil {
 			return err
 		}

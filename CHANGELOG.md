@@ -1,3 +1,6 @@
+## [v1.5.50] - 2026-10-23
+- 默认沿用已有 Request-ID 内部续传约定，固定 URL、发现代理及 MakeUrl 无需逐服务配置；保留显式 direct/trusted 策略。
+
 ## [v1.5.49] - 2026-10-23
 - Integrate HTTP external address snapshots and independent proxy trust; normalize transparent relay and HTTPS URL/redirect handling.
 
