@@ -98,3 +98,7 @@ Fixed URL, discovery and WebSocket transparent proxies overwrite both supported 
 ## 默认可用 / Default internal relay (v1.5.50)
 
 Service prepares external addressing before generating a missing Request-ID. This preserves outer HTTPS and MakeUrl across fixed/discovery/H2C/WebSocket proxy hops without extra configuration. It does not change RPC destinations or credentials. Optional `ExternalAddress.Mode` supports legacy (default), direct or trusted; proxy addresses without Mode select trusted. Public Gateway boundaries explicitly use direct by default. Released dependencies: HTTP v1.5.16 and Discover v1.5.19; no local replace.
+
+## AES-GCM configuration compatibility
+
+Released dependencies select crypto v1.5.9. Shared Symmetric.Decrypt/DecryptBytes authenticate `12-byte IV || ciphertext || 16-byte tag` first, then try the configured legacy IV. Existing APIs remain unchanged. Prefer EncryptBytesAutoIV for new data and upgrade readers before enabling writers. CBC/SM4 formats are unchanged.

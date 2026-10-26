@@ -218,3 +218,19 @@ Apple M3 Max 本次 Routing / IngressDirectGate / ProxyWebSocket：默认 4015 /
 - Development validation passed: GOWORK=off go test -v ./..., go test -bench=. ./..., go test -race ./... and go vet ./.... Apple M3 Max: Routing 155.5 ns/op; direct gate 3360 ns/op; WebSocket proxy 38062 ns/op, 26.90 MB/s. HTTP is tested independently; downstream modules use documented explicit local replace mappings.
 
 - v1.5.50 发布复验：HTTP v1.5.16、Discover v1.5.19 正式依赖，GOWORK=off、无 replace；全量测试与 benchmark 通过。getExports 不可用，API 用 go doc -all 与导出源码核对。
+
+## v1.5.51 发布验证（2026-10-26）
+
+GOWORK=off，正式依赖 crypto v1.5.9，无 replace。`go test -v ./...`、`go test -bench=. ./...`、`go vet ./...`、`go mod verify` 通过。使用 `go doc` 与源码交叉核对 API，替代 getExports。现有回归覆盖本模块业务；新旧 GCM 格式、认证失败和性能基准见 crypto v1.5.9。
+
+跳过的外部条件场景：
+- --- SKIP: TestWebSocketHTTP2ProxyMatrix (0.00s)
+- --- SKIP: TestWebSocketHTTP2Service (0.00s)
+- --- SKIP: TestWebSocketHTTP2ServiceShutdown (0.00s)
+
+基准结果：
+```text
+BenchmarkRouting-16              	 7329691	       160.5 ns/op
+BenchmarkIngressDirectGate-16    	  358177	      3392 ns/op	    6881 B/op	      44 allocs/op
+BenchmarkProxyWebSocket-16       	   40935	     32646 ns/op	  31.37 MB/s	    4960 B/op	      19 allocs/op
+```
