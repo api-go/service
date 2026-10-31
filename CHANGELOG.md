@@ -1,3 +1,7 @@
+## [Unreleased] - 2026-10-31
+- Integrate asynchronous Discover worker ownership; startup logs no longer claim registration success. Stop cleans workers after an initially unavailable registry.
+- Validate HTTP startup, 503-to-200 health recovery and unregister against delayed Redis. Local Discover/Redis replacements only; not released or deployed.
+
 ## [v1.5.50] - 2026-10-23
 
 ## v1.5.51（2026-10-26）

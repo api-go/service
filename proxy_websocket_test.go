@@ -73,8 +73,7 @@ func TestProxyWebSocket(t *testing.T) {
 				defer ws.Stop(context.Background())
 				discover.AddExternalApp(app, "2")
 				addr := strings.TrimPrefix(upstream.URL, "http://")
-				discover.SetNode(app, addr, 100)
-				defer discover.SetNode(app, addr, 0)
+				registerDiscoverFixture(t, ws.Config.Register, app, addr)
 				target = app
 			}
 			ws.SetAuthChecker(func(_ int, _ *log.Logger, _ *string, _ map[string]any, request *service.Request, _ *service.Response, _ *service.WebServiceOptions) (bool, any) {
@@ -195,8 +194,7 @@ func TestDiscoverProxyWebSocketRejectPreservesResponse(t *testing.T) {
 	app := "service-proxy-rejection-upstream-test"
 	discover.AddExternalApp(app, "1")
 	addr := strings.TrimPrefix(upstream.URL, "http://")
-	discover.SetNode(app, addr, 100)
-	defer discover.SetNode(app, addr, 0)
+	registerDiscoverFixture(t, ws.Config.Register, app, addr)
 	ws.Host("*").Proxy(0, "/", app+"/")
 	gateway := httptest.NewServer(ws.Handler())
 	defer gateway.Close()

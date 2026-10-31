@@ -234,3 +234,13 @@ BenchmarkRouting-16              	 7329691	       160.5 ns/op
 BenchmarkIngressDirectGate-16    	  358177	      3392 ns/op	    6881 B/op	      44 allocs/op
 BenchmarkProxyWebSocket-16       	   40935	     32646 ns/op	  31.37 MB/s	    4960 B/op	      19 allocs/op
 ```
+
+## Discover recovery integration — 2026-10-31 (unreleased)
+
+- GOWORK=off with explicit Discover => ../discover and Redis => ../redis development replacements; no other unpublished dependencies.
+- TestServiceDiscoveryDoesNotBlockStartup: actual HTTP listener answers 503 while Redis is absent; delayed isolated Redis causes automatic registration and 200 health; Service shutdown joins Discover and removes its registration.
+- Discovery-backed HTTP/WS fixtures register membership and leases atomically in Redis and wait for discovery readiness, consistent with asynchronous startup. Temporary test records are removed.
+- Full verbose suite, full race with GODEBUG=http2xconnect=1 (including extended CONNECT cases), benchmark and go vet passed. API checked with go doc -all and exported source; getExports unavailable.
+- No commit, tag, push or deployment performed.
+
+- Development benchmarks on Apple M3 Max: Routing 152.4 ns/op; IngressDirectGate 3146 ns/op (6880 B/op, 44 allocs/op); ProxyWebSocket 34784 ns/op (4893 B/op, 19 allocs/op).

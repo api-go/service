@@ -503,7 +503,8 @@ func (ws *WebServer) Start(ctx context.Context, logger *log.Logger) error {
 			discover.SetLogger(logger)
 			ws.discoverStarted = discover.Start(discoverAddr)
 			if ws.discoverStarted {
-				logger.Info("discover registered", "app", appName, "addr", discoverAddr)
+				// Start confirms worker ownership; registration readiness is asynchronous.
+				logger.Info("discover recovery started", "app", appName, "addr", discoverAddr)
 			}
 		}
 	}

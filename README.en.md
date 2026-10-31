@@ -102,3 +102,9 @@ Service prepares external addressing before generating a missing Request-ID. Thi
 ## AES-GCM configuration compatibility
 
 Released dependencies select crypto v1.5.9. Shared Symmetric.Decrypt/DecryptBytes authenticate `12-byte IV || ciphertext || 16-byte tag` first, then try the configured legacy IV. Existing APIs remain unchanged. Prefer EncryptBytesAutoIV for new data and upgrade readers before enabling writers. CBC/SM4 formats are unchanged.
+
+## Discover asynchronous recovery (unreleased)
+
+Register enables background Discover recovery without waiting for Redis before HTTP startup. `discover recovery started` means worker ownership, not successful registration. Default discovery health reports 503 until registration recovers, then 200; custom handlers override it. Service Stop joins its recovery workers. Use a separate liveness probe to keep the process running during registry outages.
+
+Development validation uses GOWORK=off and explicit ../discover and ../redis replacements. No release or deployment.

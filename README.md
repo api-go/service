@@ -211,7 +211,7 @@ Static(path, rootPath)的URL后缀在连接rootPath前按根路径归一化，�
 
 本版本对齐 Log v1.5.17 与发布时模块索引中的上游已发布依赖；公开 API 保持兼容。
 
-Handler 自动提供 GET `/_discover/health`，默认 200/OK；可用 `discover.SetHealthHandler` 自定义状态和内容。入口在可信 IP 解析后补齐标准请求头，调用来源为 `X-From-App`/`X-From-Node`。
+Handler 自动提供 GET `/_discover/health`，未配置服务端注册或注册已确认时 200/OK，注册未确认时 503；可用 `discover.SetHealthHandler` 自定义状态和内容。入口在可信 IP 解析后补齐标准请求头，调用来源为 `X-From-App`/`X-From-Node`。
 
 代理保留上游状态码、Location、多条 Set-Cookie 和公开 Host；不会自动跟随上游跳转。
 
@@ -255,3 +255,9 @@ Service prepares external addressing before generating a missing Request-ID. Thi
 ## AES-GCM 配置密文兼容
 
 正式依赖选用 crypto v1.5.9，共享 `Symmetric.Decrypt/DecryptBytes` 先认证 `[12 字节 IV][密文][16 字节 tag]`，再使用配置 IV 兼容旧格式；现有 API 不变。新数据推荐 `EncryptBytesAutoIV`，先升级接收端再启用新写入。此能力针对 AES-GCM，不改变 CBC/SM4 格式。
+
+## Discover 异步恢复（本地未发布）
+
+配置 Register 后，Service 启动 Discover 后台恢复任务并继续启动 HTTP，不等待 Redis。日志 `discover recovery started` 只表示任务已启动；实际注册成功由 Discover 记录。默认 `/_discover/health` 在注册未完成或丢失时返回 503，恢复后返回 200；自定义健康处理器优先。Stop 始终清理本次启动的恢复任务。存活探针需要独立于注册就绪状态。
+
+开发验证显式替换 Discover => ../discover、Redis => ../redis，GOWORK=off；尚未发布或部署。

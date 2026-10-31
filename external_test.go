@@ -112,8 +112,7 @@ func TestExternalDiscoverH2CProxy(t *testing.T) {
 	app := "external-discovery-proxy"
 	discover.AddExternalApp(app, "2")
 	addr := strings.TrimPrefix(upstream.URL, "http://")
-	discover.SetNode(app, addr, 100)
-	defer discover.SetNode(app, addr, 0)
+	registerDiscoverFixture(t, ws.Config.Register, app, addr)
 	ws.Host("*").Proxy(0, "/entry", app+"/target")
 	r := httptest.NewRequest("GET", "http://internal/entry", nil)
 	r.Header.Set("X-Request-ID", "outer-gateway")
