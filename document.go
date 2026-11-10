@@ -1,7 +1,7 @@
 package service
 
 import (
-	"apigo.cc/go/cast"
+	"github.com/api-go/cast"
 	_ "embed"
 	"encoding/json"
 	"reflect"

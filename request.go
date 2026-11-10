@@ -1,8 +1,8 @@
 package service
 
 import (
-	"apigo.cc/go/discover"
-	gohttp "apigo.cc/go/http"
+	"github.com/api-go/discover"
+	gohttp "github.com/api-go/http"
 	"io"
 	"mime/multipart"
 	"net"

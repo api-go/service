@@ -1,9 +1,9 @@
 package service_test
 
 import (
-	"apigo.cc/go/discover"
-	"apigo.cc/go/redis"
-	"apigo.cc/go/service"
+	"github.com/api-go/discover"
+	"github.com/api-go/redis"
+	"github.com/api-go/service"
 	"context"
 	"fmt"
 	"net"

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"apigo.cc/go/service"
+	"github.com/api-go/service"
 	"github.com/dop251/goja"
 )
 

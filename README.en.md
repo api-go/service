@@ -64,7 +64,7 @@ HTTP content encoding such as gzip is separate from source minification.
   `ServiceConfig.WebSocketProxy`: HTTP and WebSocket proxy transports, limits
   and lifecycle configuration.
 
-Use `go doc -all apigo.cc/go/service` for exact signatures and the
+Use `go doc -all github.com/api-go/service` for exact signatures and the
 [Chinese reference](README.md) for configuration and lifecycle examples.
 
 ## Validation

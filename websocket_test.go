@@ -1,8 +1,8 @@
 package service
 
 import (
-	"apigo.cc/go/log"
-	"apigo.cc/go/watch"
+	"github.com/api-go/log"
+	"github.com/api-go/watch"
 	"github.com/gorilla/websocket"
 	"net/http/httptest"
 	"os"

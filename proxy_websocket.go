@@ -11,10 +11,10 @@ import (
 	"sync"
 	"time"
 
-	"apigo.cc/go/discover"
-	goencoding "apigo.cc/go/encoding"
-	gohttp "apigo.cc/go/http"
-	"apigo.cc/go/log"
+	"github.com/api-go/discover"
+	goencoding "github.com/api-go/encoding"
+	gohttp "github.com/api-go/http"
+	"github.com/api-go/log"
 	"github.com/gorilla/websocket"
 )
 

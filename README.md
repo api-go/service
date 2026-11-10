@@ -23,7 +23,7 @@
 
 ### 1. 服务注册 (Modern HostContext API)
 ```go
-import "apigo.cc/go/service"
+import "github.com/api-go/service"
 
 // 推荐：流式注册模式
 service.Host("*").POST("/hello", func(in struct{ Name string `verify:"length:2+"` }) string {
@@ -176,11 +176,11 @@ service:
 ```
 
 ## 基础设施对齐
-- **类型转换**: `apigo.cc/go/cast`
-- **日志系统**: `apigo.cc/go/log`
-- **服务发现**: `apigo.cc/go/discover`（`service v1.5.22` 对齐 `discover v1.5.8`）
-- **分布式 ID**: `apigo.cc/go/id`
-- **文件操作**: `apigo.cc/go/file`
+- **类型转换**: `github.com/api-go/cast`
+- **日志系统**: `github.com/api-go/log`
+- **服务发现**: `github.com/api-go/discover`（`service v1.5.22` 对齐 `discover v1.5.8`）
+- **分布式 ID**: `github.com/api-go/id`
+- **文件操作**: `github.com/api-go/file`
 
 ## Gateway ingress APIs (v1.5.46)
 

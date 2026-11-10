@@ -138,12 +138,12 @@
 - [x] Response Dynamic Bytes: 低代码动态数组通过 `WriteBytes` 写入时保持 UTF-8 字节不变
 
 ## 基础设施对齐验证
-- [x] 成功集成 `apigo.cc/go/cast` 用于参数解析与类型强转。
-- [x] 成功集成 `apigo.cc/go/timer` 用于高性能耗时追踪。
-- [x] 成功集成 `apigo.cc/go/log` 并实现完整的 Request 日志记录，支持头过滤与内容截断。
-- [x] 强制集成 `apigo.cc/go/file` 替代原生 `os`，全面支持内存虚拟文件系统。
-- [x] 成功集成 `apigo.cc/go/id` 与 `go/redis` 实现分布式有序 ID。
-- [x] 成功集成 `apigo.cc/go/discover` 并支持 H2C 协议的零配置自动注册。
+- [x] 成功集成 `github.com/api-go/cast` 用于参数解析与类型强转。
+- [x] 成功集成 `github.com/api-go/timer` 用于高性能耗时追踪。
+- [x] 成功集成 `github.com/api-go/log` 并实现完整的 Request 日志记录，支持头过滤与内容截断。
+- [x] 强制集成 `github.com/api-go/file` 替代原生 `os`，全面支持内存虚拟文件系统。
+- [x] 成功集成 `github.com/api-go/id` 与 `go/redis` 实现分布式有序 ID。
+- [x] 成功集成 `github.com/api-go/discover` 并支持 H2C 协议的零配置自动注册。
 - [x] **Safety**: 已集成 `recover` 机制，保障服务在高并发业务 Panic 时的稳定性。
 
 ## v1.5.42 发布验证（2026-10-06）
@@ -244,3 +244,13 @@ BenchmarkProxyWebSocket-16       	   40935	     32646 ns/op	  31.37 MB/s	    496
 - No commit, tag, push or deployment performed.
 
 - Development benchmarks on Apple M3 Max: Routing 152.4 ns/op; IngressDirectGate 3146 ns/op (6880 B/op, 44 allocs/op); ProxyWebSocket 34784 ns/op (4893 B/op, 19 allocs/op).
+
+## GitHub migration validation (pending release)
+
+Module paths and internal dependency versions are migrated. Development verification uses GOWORK=off and explicit sibling replacements; remove these replacements before release. See migration validation logs for actual results. Existing unrelated working changes are preserved and require separate review.
+
+API inventory verification: `GOWORK=off go doc` succeeded; output retained in the migration validation directory. Source exports were preserved by the path migration.
+
+## GitHub release verification
+
+GOWORK=off go test -v ./... and go test -bench=. ./... passed using published GitHub dependencies, without local replacements. go mod verify passed.

@@ -1,3 +1,7 @@
+## [v1.5.53] - 2026-11-10
+
+- 迁移至 github.com/api-go/service，同步内部模块路径与依赖。
+
 ## [Unreleased] - 2026-10-31
 - Integrate asynchronous Discover worker ownership; startup logs no longer claim registration success. Stop cleans workers after an initially unavailable registry.
 - Validate HTTP startup, 503-to-200 health recovery and unregister against delayed Redis. Local Discover/Redis replacements only; not released or deployed.
@@ -79,7 +83,7 @@
 - **依赖对齐**: 补齐 `discover`、`http`、`redis`、`starter`、`watch` 等级联版本。
 
 ## v1.5.35 (2026-09-05)
-- **依赖对齐**: 升级全部 `apigo.cc/go/*` 依赖至当前已发布版本。
+- **依赖对齐**: 升级全部 `github.com/api-go/*` 依赖至当前已发布版本。
 
 ## v1.5.34 (2026-09-04)
 - **客户端标识一致性**: 启用 Cookie 时，将请求头中有效的 Session ID 与 Device ID 同步到缺失或不一致的 HttpOnly Cookie，避免 Fetch 请求与页面导航选择不同身份。
@@ -243,14 +247,14 @@
 ## v1.5.4 (2026-06-05)
 - **优化: 生命周期日志剥离**:
   - 彻底移除了 `WebServer` 内部冗余的 `starting / stopping / stopped` 控制台日志输出。
-  - **权责对齐**: 服务的生命周期审计现已全量交由 `apigo.cc/go/starter (v1.5.2)` 接管。
+  - **权责对齐**: 服务的生命周期审计现已全量交由 `github.com/api-go/starter (v1.5.2)` 接管。
   - **专注输出**: `service` 模块现在仅负责输出关键的监听信息（如 `starting listener addr:[::]:8001 proto:http`），并自动继承 `starter` 分配的长 TraceID 建立链路关联。
 
 ## v1.5.3 (2026-06-04)
 - **新特性**:
   - `Static` 静态文件服务增加默认索引文件识别：当请求目录时，若未配置 `IndexFiles`，会自动尝试匹配 `index.html` 或 `index.htm`。
 - **优化**:
-  - 依赖升级至 `apigo.cc/go/log v1.5.3`，实现对第三方库原始日志的自动劫持与 `serverId` 注入。
+  - 依赖升级至 `github.com/api-go/log v1.5.3`，实现对第三方库原始日志的自动劫持与 `serverId` 注入。
   - 清理了启动阶段多余的诊断日志，确保“零配置”启动时的控制台纯净度。
 - **稳定性**:
   - 修复了 `Start()` 函数的幂等性问题，防止在手动调用与 `starter` 框架调度冲突时产生重复绑定端口的错误。
@@ -316,8 +320,8 @@
 
 ## v1.0.1 (2026-05-08)
 ### Added
-- 集成 `apigo.cc/go/log` 并实现完整的 `Request` 日志记录，支持 `NoLog200` 选项。
-- 集成 `apigo.cc/go/timer` 用于高精度请求耗时统计。
+- 集成 `github.com/api-go/log` 并实现完整的 `Request` 日志记录，支持 `NoLog200` 选项。
+- 集成 `github.com/api-go/timer` 用于高精度请求耗时统计。
 - 在 `service.go` 中添加 `GetInjectT` 泛型函数，提升依赖注入体验。
 - `Response` 结构体新增 `body` 捕获（仅在非 200 状态下且小于 4KB 时捕获），用于错误日志记录。
 

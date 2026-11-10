@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"apigo.cc/go/service"
+	"github.com/api-go/service"
 	"github.com/gorilla/websocket"
 )
 

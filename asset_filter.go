@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"apigo.cc/go/log"
+	"github.com/api-go/log"
 )
 
 func (ws *WebServer) shouldFilterDynamicContent(contentType string, data []byte) bool {

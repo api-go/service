@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"apigo.cc/go/service"
+	"github.com/api-go/service"
 )
 
 func TestProxyInvalidWebSocketHandshakeDoesNotContactUpstream(t *testing.T) {

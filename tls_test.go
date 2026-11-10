@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"apigo.cc/go/log"
+	"github.com/api-go/log"
 )
 
 func TestParseListenConfigs(t *testing.T) {

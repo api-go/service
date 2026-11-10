@@ -1,13 +1,13 @@
 package service
 
 import (
-	"apigo.cc/go/config"
-	"apigo.cc/go/discover"
-	gohttp "apigo.cc/go/http"
-	"apigo.cc/go/log"
-	"apigo.cc/go/redis"
-	"apigo.cc/go/starter"
-	"apigo.cc/go/watch"
+	"github.com/api-go/config"
+	"github.com/api-go/discover"
+	gohttp "github.com/api-go/http"
+	"github.com/api-go/log"
+	"github.com/api-go/redis"
+	"github.com/api-go/starter"
+	"github.com/api-go/watch"
 	"context"
 	"crypto/tls"
 	"errors"

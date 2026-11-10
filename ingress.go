@@ -1,7 +1,7 @@
 package service
 
 import (
-	gohttp "apigo.cc/go/http"
+	gohttp "github.com/api-go/http"
 	"fmt"
 	"net"
 	"net/http"

@@ -1,10 +1,10 @@
 package service
 
 import (
-	"apigo.cc/go/crypto"
-	"apigo.cc/go/encoding"
-	"apigo.cc/go/file"
-	"apigo.cc/go/log"
+	"github.com/api-go/crypto"
+	"github.com/api-go/encoding"
+	"github.com/api-go/file"
+	"github.com/api-go/log"
 	"io"
 	"mime"
 	"net/http"

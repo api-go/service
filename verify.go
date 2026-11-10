@@ -1,8 +1,8 @@
 package service
 
 import (
-	"apigo.cc/go/cast"
-	"apigo.cc/go/log"
+	"github.com/api-go/cast"
+	"github.com/api-go/log"
 	"reflect"
 	"regexp"
 	"strings"

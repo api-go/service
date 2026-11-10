@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"apigo.cc/go/service"
+	"github.com/api-go/service"
 )
 
 func TestAssetVersionAndRewrite(t *testing.T) {

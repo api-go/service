@@ -1,8 +1,8 @@
 package service_test
 
 import (
-	gohttp "apigo.cc/go/http"
-	"apigo.cc/go/service"
+	gohttp "github.com/api-go/http"
+	"github.com/api-go/service"
 	"context"
 	"github.com/gorilla/websocket"
 	"golang.org/x/net/http2"

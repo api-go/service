@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"apigo.cc/go/timer"
+	"github.com/api-go/timer"
 )
 
 const assetGraphScanInterval = 5 * time.Second

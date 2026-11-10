@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"apigo.cc/go/cast"
+	"github.com/api-go/cast"
 )
 
 // sanitizeOpts 日志脱敏配置

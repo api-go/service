@@ -6,10 +6,10 @@ import (
 	"sync"
 	"time"
 
-	"apigo.cc/go/cast"
-	"apigo.cc/go/jsmod"
-	"apigo.cc/go/log"
-	"apigo.cc/go/redis"
+	"github.com/api-go/cast"
+	"github.com/api-go/jsmod"
+	"github.com/api-go/log"
+	"github.com/api-go/redis"
 )
 
 // Session 会话对象

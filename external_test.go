@@ -1,9 +1,9 @@
 package service_test
 
 import (
-	"apigo.cc/go/discover"
-	gohttp "apigo.cc/go/http"
-	"apigo.cc/go/service"
+	"github.com/api-go/discover"
+	gohttp "github.com/api-go/http"
+	"github.com/api-go/service"
 	"context"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"

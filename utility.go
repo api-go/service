@@ -1,7 +1,7 @@
 package service
 
 import (
-	"apigo.cc/go/id"
+	"github.com/api-go/id"
 	"net"
 	"os"
 	"path"

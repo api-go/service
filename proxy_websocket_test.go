@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"apigo.cc/go/discover"
-	"apigo.cc/go/log"
-	"apigo.cc/go/service"
+	"github.com/api-go/discover"
+	"github.com/api-go/log"
+	"github.com/api-go/service"
 	"github.com/gorilla/websocket"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"

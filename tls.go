@@ -17,10 +17,10 @@ import (
 	"sync"
 	"time"
 
-	goCrypto "apigo.cc/go/crypto"
-	goEncoding "apigo.cc/go/encoding"
-	"apigo.cc/go/file"
-	"apigo.cc/go/safe"
+	goCrypto "github.com/api-go/crypto"
+	goEncoding "github.com/api-go/encoding"
+	"github.com/api-go/file"
+	"github.com/api-go/safe"
 )
 
 var (

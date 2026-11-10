@@ -1,7 +1,7 @@
 package service_test
 
 import (
-	"apigo.cc/go/service"
+	"github.com/api-go/service"
 	"net/http"
 	"net/http/httptest"
 	"testing"

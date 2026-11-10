@@ -1,6 +1,6 @@
 package service
 
-import gohttp "apigo.cc/go/http"
+import gohttp "github.com/api-go/http"
 
 // CertSet SSL 证书配置
 type CertSet struct {

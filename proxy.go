@@ -1,9 +1,9 @@
 package service
 
 import (
-	"apigo.cc/go/discover"
-	gohttp "apigo.cc/go/http"
-	"apigo.cc/go/log"
+	"github.com/api-go/discover"
+	gohttp "github.com/api-go/http"
+	"github.com/api-go/log"
 	"fmt"
 	"github.com/gorilla/websocket"
 	"io"

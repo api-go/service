@@ -1,9 +1,9 @@
 package service
 
 import (
-	gohttp "apigo.cc/go/http"
-	"apigo.cc/go/jsmod"
-	"apigo.cc/go/log"
+	gohttp "github.com/api-go/http"
+	"github.com/api-go/jsmod"
+	"github.com/api-go/log"
 	"context"
 	"github.com/gorilla/websocket"
 	"net/http"
