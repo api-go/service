@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -76,6 +77,9 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		// 捕捉 Panic
 		if err := recover(); err != nil {
+			if response.proxyLog != nil {
+				response.proxyLog.fail("panic", fmt.Errorf("%v", err))
+			}
 			requestLogger.Error("panic recovered", "requestId", requestId, "path", r.URL.Path, "error", err, "stack", string(debug.Stack()))
 			if !response.changed {
 				response.WriteHeader(http.StatusInternalServerError)
@@ -85,6 +89,12 @@ func (rh *RouteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		response.checkWriteHeader()
 
+		// Proxy requests have one compact summary. Static/business/rejected ingress
+		// retain their normal request record, including when no upstream was called.
+		if response.proxyLog != nil {
+			ws.logProxy(request, response, requestLogger)
+			return
+		}
 		// 记录日志
 		if (s == nil || !s.options.NoLog200 || response.Code != 200) &&
 			!(ws.Config.NoLogGets && r.Method == http.MethodGet && response.Code == 200) {

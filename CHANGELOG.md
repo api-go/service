@@ -1,3 +1,7 @@
+## 未发布 — 2026-11-12
+- 新增 CompactProxyLog 与 ProxyLog，仅代理替换重复 RequestLog，保留静态/业务/入口结果日志。
+- 代理异常保留有界脱敏诊断；统计传输字节，识别 200 后流异常，WebSocket 保留打开/关闭记录。
+
 ## [v1.5.53] - 2026-11-10
 
 - 迁移至 github.com/api-go/service，同步内部模块路径与依赖。

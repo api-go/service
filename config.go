@@ -30,6 +30,7 @@ type WebSocketProxyConfig struct {
 
 // ServiceConfig 核心服务配置
 type ServiceConfig struct {
+	CompactProxyLog               bool                         // Replace proxy RequestLog with a compact ProxyLog; static/business requests are unaffected.
 	ExternalAddress               gohttp.ExternalAddressPolicy // 默认按已有 Request-ID 续传外部地址；可选 direct/trusted 增强
 	WebSocketProxy                WebSocketProxyConfig
 	ClientIP                      ClientIPPolicy        // 空模式保留内部兼容；Gateway 使用 direct/trusted

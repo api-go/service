@@ -254,3 +254,9 @@ API inventory verification: `GOWORK=off go doc` succeeded; output retained in th
 ## GitHub release verification
 
 GOWORK=off go test -v ./... and go test -bench=. ./... passed using published GitHub dependencies, without local replacements. go mod verify passed.
+
+## 精简代理日志验证 — 2026-11-12
+
+- 代理/静态/404 的日志类型和条数分离；响应失败诊断脱敏；200 后截断响应仍记录流异常。
+- WebSocket direct/discover 在 legacy/compact 两种模式下回归；使用 GODEBUG=http2xconnect=1 覆盖 HTTP/2。
+- GOWORK=off，/tmp/apigo-validation-service.mod 显式替换本次改动模块；API 使用 go doc 与源码核对。

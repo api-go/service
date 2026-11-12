@@ -1,10 +1,10 @@
 package service
 
 import (
+	"fmt"
 	"github.com/api-go/cast"
 	"github.com/api-go/file"
 	"github.com/api-go/jsmod"
-	"fmt"
 	"io"
 	"net/http"
 	"reflect"
@@ -12,6 +12,7 @@ import (
 
 // Response 封装 http.ResponseWriter
 type Response struct {
+	proxyLog      *proxyLogState
 	Id            string
 	Writer        http.ResponseWriter `js:"-"`
 	Code          int

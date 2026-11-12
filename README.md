@@ -261,3 +261,7 @@ Service prepares external addressing before generating a missing Request-ID. Thi
 配置 Register 后，Service 启动 Discover 后台恢复任务并继续启动 HTTP，不等待 Redis。日志 `discover recovery started` 只表示任务已启动；实际注册成功由 Discover 记录。默认 `/_discover/health` 在注册未完成或丢失时返回 503，恢复后返回 200；自定义健康处理器优先。Stop 始终清理本次启动的恢复任务。存活探针需要独立于注册就绪状态。
 
 开发验证显式替换 Discover => ../discover、Redis => ../redis，GOWORK=off；尚未发布或部署。
+
+### 代理精简日志
+
+ServiceConfig.CompactProxyLog 默认 false；Gateway 应用启用后，命中的代理只生成 ProxyLog，静态文件、业务路由、未命中/入口拒绝仍使用 RequestLog。正常 ProxyLog 无头部/正文，字段为 App、Target、Node、Method、Host、Path（无 query）、Proto、ClientIp、Status、UsedTime（秒）、RequestBytes、ResponseBytes、Phase、Error。失败追加遵循现有配置的脱敏头和至多 4096 字节的上游响应摘要，不捕获请求正文。200 后传输异常通过 Phase=stream 和 Error 表达。WebSocket 保留 open 记录及 closed 摘要，均使用同一 TraceID。ProxyLog 支持 Reset；模型名 proxy。

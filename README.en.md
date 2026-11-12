@@ -108,3 +108,7 @@ Released dependencies select crypto v1.5.9. Shared Symmetric.Decrypt/DecryptByte
 Register enables background Discover recovery without waiting for Redis before HTTP startup. `discover recovery started` means worker ownership, not successful registration. Default discovery health reports 503 until registration recovers, then 200; custom handlers override it. Service Stop joins its recovery workers. Use a separate liveness probe to keep the process running during registry outages.
 
 Development validation uses GOWORK=off and explicit ../discover and ../redis replacements. No release or deployment.
+
+### Compact proxy logs
+
+ServiceConfig.CompactProxyLog defaults to false. When enabled, matched proxies emit ProxyLog instead of duplicate RequestLog; static files, business routes and unmatched/rejected ingress keep RequestLog. Successful summaries omit headers/bodies and retain trace, target/node, method/host/path/protocol/client IP, status, elapsed seconds, request/response byte counts and phase/error. Failures add configured redacted headers and at most 4096 upstream response bytes; request bodies are never captured. Stream failures after status 200 remain failures. WebSockets emit open and closed summaries under the same trace.

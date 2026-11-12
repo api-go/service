@@ -1,13 +1,14 @@
 package service
 
 import (
+	"fmt"
 	"github.com/api-go/discover"
 	gohttp "github.com/api-go/http"
 	"github.com/api-go/log"
-	"fmt"
 	"github.com/gorilla/websocket"
 	"io"
 	"net/http"
+	"net/url"
 	"reflect"
 	"regexp"
 	"strings"
@@ -160,6 +161,12 @@ func (ws *WebServer) processProxy(request *Request, response *Response, logger *
 		return false
 	}
 
+	if ws.Config.CompactProxyLog {
+		response.proxyLog = &proxyLogState{target: safeProxyTarget(*proxyToApp), phase: "auth", started: time.Now()}
+		if request.Body != nil {
+			request.Body = &proxyRequestBody{request.Body, response.proxyLog}
+		}
+	}
 	// 鉴权
 	pass, obj := ws.checkAuthForProxy(authLevel, request, response, logger)
 	if !pass {
@@ -172,7 +179,9 @@ func (ws *WebServer) processProxy(request *Request, response *Response, logger *
 
 	app := *proxyToApp
 	path := *proxyToPath
-	logger.Info("proxy", "app", app, "path", path, "host", foundHost)
+	if !ws.Config.CompactProxyLog {
+		logger.Info("proxy", "app", app, "path", path, "host", foundHost)
+	}
 	if gohttp.IsWebSocketRequest(request.Request) {
 		ws.proxyWebSocket(request, response, logger, app, path)
 		return true
@@ -180,18 +189,33 @@ func (ws *WebServer) processProxy(request *Request, response *Response, logger *
 
 	if strings.Contains(app, "://") {
 		// 直接 URL 代理
+		if response.proxyLog != nil {
+			parsed, _ := url.Parse(app)
+			if parsed != nil {
+				response.proxyLog.node = parsed.Host
+			}
+			response.proxyLog.phase = "connect"
+		}
 		res := ws.getHttpClient().ManualDoByRequest(request.Request, request.Method, app+path, request.Body, proxyRelayHeaders(request)...)
 		copyResponse(res, response, logger)
 	} else {
 		// Discover 代理
 		if !ws.discoverStarted {
-			logger.Error("proxy failed: Discoverer is not initialized")
+			if response.proxyLog != nil {
+				response.proxyLog.fail("discovery", fmt.Errorf("Discoverer is not initialized"))
+			} else {
+				logger.Error("proxy failed: Discoverer is not initialized")
+			}
 			response.WriteHeader(http.StatusBadGateway)
 			return true
 		}
 		caller := discover.NewCaller(request.Request, logger)
 		caller.NoBody = true
-		res, _ := caller.ManualDoWithNode(request.Method, app, "", path, request.Body, proxyRelayHeaders(request)...)
+		caller.SuppressCallLog = ws.Config.CompactProxyLog
+		res, node := caller.ManualDoWithNode(request.Method, app, "", path, request.Body, proxyRelayHeaders(request)...)
+		if response.proxyLog != nil {
+			response.proxyLog.node = node
+		}
 		copyResponse(res, response, logger)
 	}
 
@@ -241,7 +265,21 @@ func (ws *WebServer) checkAuthForProxy(authLevel int, request *Request, response
 }
 
 func copyResponse(res *gohttp.Result, response *Response, logger *log.Logger) {
+	if res == nil {
+		if response.proxyLog != nil {
+			response.proxyLog.fail("upstream", fmt.Errorf("missing upstream response"))
+		}
+		response.WriteHeader(http.StatusBadGateway)
+		return
+	}
 	if res.Error != nil || res.Response == nil {
+		if response.proxyLog != nil {
+			err := res.Error
+			if err == nil {
+				err = fmt.Errorf("missing upstream response")
+			}
+			response.proxyLog.fail("upstream", err)
+		}
 		response.WriteHeader(http.StatusBadGateway)
 		if res.Error != nil {
 			_, _ = response.WriteString(res.Error.Error())
@@ -259,13 +297,28 @@ func copyResponse(res *gohttp.Result, response *Response, logger *log.Logger) {
 			response.Writer.Header().Add(k, value)
 		}
 	}
+	if response.proxyLog != nil {
+		response.proxyLog.phase = "complete"
+	}
 	response.WriteHeader(res.Response.StatusCode)
 	response.checkWriteHeader()
 	if res.Response.Body != nil {
 		defer res.Response.Body.Close()
-		_, err := io.Copy(response.Writer, res.Response.Body)
+		var source io.Reader = res.Response.Body
+		if response.proxyLog != nil && res.Response.StatusCode >= 400 && !response.server.Config.NoLogOutput {
+			source = io.TeeReader(source, proxyDiagnosticCapture{response.proxyLog})
+		}
+		n, err := io.Copy(response.Writer, source)
+		if response.proxyLog != nil {
+			response.proxyLog.bytes = n
+			response.proxyLog.phase = "complete"
+		}
 		if err != nil {
-			logger.Error("proxy copy body failed", "error", err.Error())
+			if response.proxyLog != nil {
+				response.proxyLog.fail("stream", err)
+			} else {
+				logger.Error("proxy copy body failed", "error", err.Error())
+			}
 		}
 	}
 }

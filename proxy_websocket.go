@@ -110,6 +110,9 @@ func (ws *WebServer) proxyWebSocket(request *Request, response *Response, logger
 	if strings.Contains(app, "://") {
 		target, parseErr := url.Parse(app + path)
 		if parseErr != nil {
+			if response.proxyLog != nil {
+				response.proxyLog.fail("handshake", parseErr)
+			}
 			response.WriteHeader(http.StatusBadGateway)
 			return
 		}
@@ -128,9 +131,17 @@ func (ws *WebServer) proxyWebSocket(request *Request, response *Response, logger
 		}
 		caller := discover.NewCaller(request.Request, logger)
 		caller.WebSocketClient = client
+		caller.SuppressCallLog = ws.Config.CompactProxyLog
 		upstream, handshake, node, err = caller.Open(app, path, headers)
 	}
+	if response.proxyLog != nil {
+		response.proxyLog.node = node
+		response.proxyLog.phase = "handshake"
+	}
 	if err != nil {
+		if response.proxyLog != nil {
+			response.proxyLog.fail("handshake", err)
+		}
 		var handshakeError *gohttp.WebSocketHandshakeError
 		truncated := errors.As(err, &handshakeError) && handshakeError.BodyTruncated
 		status := http.StatusBadGateway
@@ -208,6 +219,9 @@ func (ws *WebServer) proxyWebSocket(request *Request, response *Response, logger
 	response.Writer.Header().Del(ws.usedSessionIdKey)
 	downstream, err := gohttp.UpgradeWebSocket(&upgrader, response.Writer, request.Request, responseHeaders)
 	if err != nil {
+		if response.proxyLog != nil {
+			response.proxyLog.fail("upgrade", err)
+		}
 		logger.Error("websocket proxy client upgrade failed", "node", node, "error", err.Error())
 		return
 	}
@@ -217,6 +231,10 @@ func (ws *WebServer) proxyWebSocket(request *Request, response *Response, logger
 	}
 	response.changed = true
 	response.headerWritten = true
+	if response.proxyLog != nil {
+		response.proxyLog.phase = "open"
+		ws.logProxy(request, response, logger)
+	}
 	tracked := &WebSocketConn{Conn: downstream}
 	if !ws.registerWebSocket(tracked) {
 		_ = downstream.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseGoingAway, "service stopping"), time.Now().Add(time.Second))
@@ -226,6 +244,17 @@ func (ws *WebServer) proxyWebSocket(request *Request, response *Response, logger
 	defer tracked.Close()
 	results, reason := relayProxyWebSocket(request.Context(), upstream.Conn, downstream, settings)
 	_ = tracked.Close()
+	if response.proxyLog != nil {
+		response.proxyLog.phase = "closed"
+		response.proxyLog.bytes = results[1].bytes
+		response.proxyLog.requestBytes.Store(results[0].bytes)
+		for _, result := range results {
+			if result.err != nil && !websocket.IsCloseError(result.err, websocket.CloseNormalClosure, websocket.CloseGoingAway) && !errors.Is(result.err, context.Canceled) {
+				response.proxyLog.fail("closed", result.err)
+			}
+		}
+		return
+	}
 	logger.Info("websocket proxy closed", "app", app, "path", path, "node", node, "status", response.Code, "duration", time.Since(started), "reason", reason, "upstreamBytes", results[0].bytes, "downstreamBytes", results[1].bytes, "upstreamMessages", results[0].messages, "downstreamMessages", results[1].messages, "upstreamClose", results[0].closeCode, "downstreamClose", results[1].closeCode, "upstreamError", proxyFrameError(results[0].err), "downstreamError", proxyFrameError(results[1].err))
 }
 
