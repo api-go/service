@@ -265,3 +265,7 @@ Service prepares external addressing before generating a missing Request-ID. Thi
 ### 代理精简日志
 
 ServiceConfig.CompactProxyLog 默认 false；Gateway 应用启用后，命中的代理只生成 ProxyLog，静态文件、业务路由、未命中/入口拒绝仍使用 RequestLog。正常 ProxyLog 无头部/正文，字段为 App、Target、Node、Method、Host、Path（无 query）、Proto、ClientIp、Status、UsedTime（秒）、RequestBytes、ResponseBytes、Phase、Error。失败追加遵循现有配置的脱敏头和至多 4096 字节的上游响应摘要，不捕获请求正文。200 后传输异常通过 Phase=stream 和 Error 表达。WebSocket 保留 open 记录及 closed 摘要，均使用同一 TraceID。ProxyLog 支持 Reset；模型名 proxy。
+
+### 实时日志开发联动（未发布，2026-11-12）
+
+本次通过 go.mod 的显式本地 replace 联动 timer、log、discover、starter，不依赖 go.work。文件日志默认采用 `.gz` + 同文件级 `.dict`；两份文件必须一起管理，使用 logv 或应用内置 log/logv 读取。`NoCompress=true` 保留旧明文格式。发布前须按依赖顺序发布新版本并移除临时 replace；当前索引版本仍表示已发布版本。

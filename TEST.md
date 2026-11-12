@@ -260,3 +260,7 @@ GOWORK=off go test -v ./... and go test -bench=. ./... passed using published Gi
 - 代理/静态/404 的日志类型和条数分离；响应失败诊断脱敏；200 后截断响应仍记录流异常。
 - WebSocket direct/discover 在 legacy/compact 两种模式下回归；使用 GODEBUG=http2xconnect=1 覆盖 HTTP/2。
 - GOWORK=off，/tmp/apigo-validation-service.mod 显式替换本次改动模块；API 使用 go doc 与源码核对。
+
+## 日志依赖联动 — 2026-11-12
+
+开发验证使用 GOWORK=off 与 go.mod 的显式本地 replace；执行完整测试、全量基准（benchtime=100ms），API 用 go doc 与导出源码交叉核对。结果记录在 /tmp/apigo-service-integration-*.txt。

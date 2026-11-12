@@ -112,3 +112,7 @@ Development validation uses GOWORK=off and explicit ../discover and ../redis rep
 ### Compact proxy logs
 
 ServiceConfig.CompactProxyLog defaults to false. When enabled, matched proxies emit ProxyLog instead of duplicate RequestLog; static files, business routes and unmatched/rejected ingress keep RequestLog. Successful summaries omit headers/bodies and retain trace, target/node, method/host/path/protocol/client IP, status, elapsed seconds, request/response byte counts and phase/error. Failures add configured redacted headers and at most 4096 upstream response bytes; request bodies are never captured. Stream failures after status 200 remain failures. WebSockets emit open and closed summaries under the same trace.
+
+### Realtime log integration (unreleased, 2026-11-12)
+
+Explicit local go.mod replacements link this change without go.work. File logs default to paired .gz/.dict files, read using logv or built-in application log commands. Keep both files together; NoCompress retains plaintext. Release dependencies in order and remove development replacements before tagging. Published version claims remain unchanged.
