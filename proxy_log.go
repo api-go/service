@@ -17,22 +17,22 @@ import (
 // enabled. Normal records contain no bodies or header maps.
 type ProxyLog struct {
 	log.BaseLog
-	App             string            `log:"pos:6"`
+	App             string            `log:"pos:6,color:cyan"`
 	Target          string            `log:"pos:7,color:cyan"`
 	Node            string            `log:"pos:8,color:gray"`
-	Method          string            `log:"pos:9"`
-	Host            string            `log:"pos:10"`
-	Path            string            `log:"pos:11,color:cyan"`
-	Proto           string            `log:"pos:12"`
-	ClientIp        string            `log:"pos:13"`
-	Status          int               `log:"pos:14"`
-	UsedTime        float64           `log:"pos:15,precision:6"`
-	ResponseBytes   int64             `log:"pos:16"`
-	Phase           string            `log:"pos:17"`
+	Method          string            `log:"pos:9,color:gray,withoutkey:true"`
+	Host            string            `log:"pos:10,color:gray,withoutkey:true"`
+	Path            string            `log:"pos:11,color:cyan,withoutkey:true"`
+	Proto           string            `log:"pos:12,color:gray,withoutkey:true"`
+	ClientIp        string            `log:"pos:13,withoutkey:true"`
+	Status          int               `log:"pos:14,color:magenta"`
+	UsedTime        float64           `log:"pos:15,color:green,precision:6"`
+	ResponseBytes   int64             `log:"pos:16,color:magenta,keyname:Size"`
+	Phase           string            `log:"pos:17,color:gray"`
 	Error           string            `log:"pos:18,color:red"`
-	RequestHeaders  map[string]string `log:"pos:19"`
-	ResponseHeaders map[string]string `log:"pos:20"`
-	ResponseData    any               `log:"pos:21"`
+	RequestHeaders  map[string]string `log:"pos:19,color:blue"`
+	ResponseHeaders map[string]string `log:"pos:20,color:yellow"`
+	ResponseData    any               `log:"pos:21,color:magenta"`
 	RequestBytes    int64             `log:"pos:22"`
 }
 

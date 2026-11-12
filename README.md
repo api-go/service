@@ -329,3 +329,6 @@ cat logs/server.log.2026-11-12.gz | ./server logv -dict logs/server.log.2026-11-
 ### Release v1.5.54 — 2026-11-12
 
 Released GitHub dependencies; no local development replacements. Full tests and benchmarks validated with GOWORK=off.
+
+
+Default human-readable log/logv output preserves ANSI colors; JSON/raw output remains structured. Existing archives retain field indices while matching fields use current presentation metadata.

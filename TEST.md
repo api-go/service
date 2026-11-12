@@ -269,3 +269,8 @@ GOWORK=off go test -v ./... and go test -bench=. ./... passed using published Gi
 ## v1.5.54 发布验证 — 2026-11-12
 
 GOWORK=off；正式 GitHub 依赖，无本地 replace。完整 go test -v ./... 与 go test -bench=. -benchtime=100ms ./... 通过；Service/Gateway 设置 GODEBUG=http2xconnect=1。API 核对使用 go doc . 与导出源码（getExports 工具不可用）。可选外部环境测试按原规则跳过。详细输出 /tmp/apigo-service-release-tests.txt 与 /tmp/apigo-service-release-bench.txt。
+
+
+## 2026-11-13 彩色日志验收
+
+DL 服务器固定 Go 镜像中 Gateway、Log 完整测试通过；旧归档命令输出含 ANSI 转义，管理入口 200，容器 healthy；用户验收通过。
