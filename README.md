@@ -266,6 +266,66 @@ Service prepares external addressing before generating a missing Request-ID. Thi
 
 ServiceConfig.CompactProxyLog 默认 false；Gateway 应用启用后，命中的代理只生成 ProxyLog，静态文件、业务路由、未命中/入口拒绝仍使用 RequestLog。正常 ProxyLog 无头部/正文，字段为 App、Target、Node、Method、Host、Path（无 query）、Proto、ClientIp、Status、UsedTime（秒）、RequestBytes、ResponseBytes、Phase、Error。失败追加遵循现有配置的脱敏头和至多 4096 字节的上游响应摘要，不捕获请求正文。200 后传输异常通过 Phase=stream 和 Error 表达。WebSocket 保留 open 记录及 closed 摘要，均使用同一 TraceID。ProxyLog 支持 Reset；模型名 proxy。
 
-### 实时日志开发联动（未发布，2026-11-12）
+### 实时压缩日志（v1.5.54）
 
-本次通过 go.mod 的显式本地 replace 联动 timer、log、discover、starter，不依赖 go.work。文件日志默认采用 `.gz` + 同文件级 `.dict`；两份文件必须一起管理，使用 logv 或应用内置 log/logv 读取。`NoCompress=true` 保留旧明文格式。发布前须按依赖顺序发布新版本并移除临时 replace；当前索引版本仍表示已发布版本。
+正式依赖已按顺序发布，go.mod 不保留本地开发 replace。文件日志默认采用 `.gz` + 同文件级 `.dict`，两份文件须一起管理；通过 logv 或内置 log/logv 读取，NoCompress=true 可保留明文。
+
+
+## 可执行文件内置日志命令（v1.5.54）
+
+GitHub：<https://github.com/api-go/service>；模块路径：`github.com/api-go/service`。升级使用 `go get github.com/api-go/service@v1.5.54`，并执行 `go mod tidy`。同一依赖图中的框架 import 必须统一到 `github.com/api-go/*`，不能混用旧 `apigo.cc/go/*` 路径，否则会产生两套配置、日志和生命周期单例。正式构建使用 `GOWORK=off`，移除临时本地 replace。
+
+通过 `service.Start()` 或 `starter.Start()` 进入生命周期，即自动获得 `log` 和 `logv` 子命令；应用不需要再次注册命令，也不需要依赖独立 logv 二进制。只调用 `service.AsyncStart()` 不经过命令分流；需要命令能力的程序应使用上述启动入口。应用自定义 `starter.AddCommand` 可以覆盖同名命令。
+
+```go
+package main
+
+import (
+    "github.com/api-go/log"
+    "github.com/api-go/service"
+)
+
+func main() {
+    log.SetDefaultConfig(log.Config{
+        File: "logs/server.log",
+        SplitTag: "2006-01-02",
+    })
+    service.Host("*").GET("/health", func() string { return "ok" })
+    service.Start()
+}
+```
+
+设置配置并注册路由后，先进入上述启动入口；不要在它之前连接业务数据库、启动后台任务或执行不可逆初始化，否则读取日志也会触发这些业务动作。复杂初始化应放到已注册服务的 Start 生命周期中。
+
+也可以通过 `env.yaml` 配置；文件和环境配置会覆盖 `SetDefaultConfig` 的应用默认值：
+
+```yaml
+log:
+  file: logs/server.log
+  splitTag: '2006-01-02'
+  level: info
+```
+
+- 默认实时压缩；例如 `server.log.2026-11-12.gz` 与 `server.log.2026-11-12.dict` 是一对，必须一起备份、传输和删除。每个分割文件独立字典，普通 gzip/zcat 不能恢复记录，必须用本工具。原有明文日志仍可读取；确需明文输出时设置 `log.noCompress: true`。
+- `./server log` 默认读取当前配置/当天日志，等价于 `-tail 100 -f`，自动跟随日期分割。指定文件而不指定范围时读取全文；显式 `-tail N` 不自动跟随，按需加 `-f`。`-head`、`-tail`、`-cat` 三种范围互斥。
+- `-json` 输出对象形式 JSONL，适合 jq/采集；`-raw` 输出还原的数组形式 JSONL。默认输出可读格式。文件参数自动寻找配套字典；压缩 stdin 需显式指定 `-dict`。普通文本 stdin 可以直接交给 `logv`。
+
+```sh
+./server log
+./server log -tail 200 -f
+./server log -tail 100 logs/server.log.2026-11-12.gz | grep 'trace-id'
+./server log -cat logs/server.log.2026-11-12.gz | grep 'error'
+./server log -head 20 logs/server.log.2026-11-12.gz
+./server log -cat -json logs/server.log.2026-11-12.gz | jq .
+./server logv -json logs/server.log.2026-11-12.gz
+cat logs/server.log.2026-11-12.gz | ./server logv -dict logs/server.log.2026-11-12.dict
+```
+
+范围选择由 `server log -tail/-head/-cat` 在解码前完成；grep、awk 等处理解码后的文本，不要直接对 `.gz` 执行 tail/head。块压缩支持跳过旧块，tail 不必解压全部历史；全文 grep 仍需解码全文。文件写入使用缓冲，优雅关闭会刷新，不承诺每条立即落盘或掉电零丢失。
+
+链路日志规范：入口 RequestID 是后续调用链的 TraceID；业务日志使用注入的 `*log.Logger`（或当前请求的 Logger），不要另造 TraceID。业务服务保留完整 RequestLog，出站 Discover 保留 CallLog。Gateway 的纯代理路由启用 CompactProxyLog，正常只记录必要目标、状态、耗时和字节数，失败增加有界脱敏诊断；静态文件独立 RequestLog。普通业务服务保持 `CompactProxyLog=false` 默认值，不应全局关闭 discover/request 日志。不要把密码、Token 或业务敏感正文写入日志；代理概要路径不含 query，诊断仍应按应用配置脱敏。
+
+
+### Release v1.5.54 — 2026-11-12
+
+Released GitHub dependencies; no local development replacements. Full tests and benchmarks validated with GOWORK=off.

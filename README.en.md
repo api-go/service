@@ -115,4 +115,27 @@ ServiceConfig.CompactProxyLog defaults to false. When enabled, matched proxies e
 
 ### Realtime log integration (unreleased, 2026-11-12)
 
-Explicit local go.mod replacements link this change without go.work. File logs default to paired .gz/.dict files, read using logv or built-in application log commands. Keep both files together; NoCompress retains plaintext. Release dependencies in order and remove development replacements before tagging. Published version claims remain unchanged.
+Released in v1.5.54 with published dependencies and no development replacements. File logs use paired .gz/.dict files; read through logv or embedded commands. Keep both files together; NoCompress retains plaintext.
+
+
+## Built-in executable log commands (v1.5.54)
+
+Repository: https://github.com/api-go/service. Upgrade with `go get github.com/api-go/service@v1.5.54` and `go mod tidy`. Migrate every framework import to `github.com/api-go/*`; mixing legacy module paths creates separate configuration/log/lifecycle singletons. Release builds use GOWORK=off without development replacements.
+
+Enter through `service.Start()` or `starter.Start()` to obtain built-in `log` and `logv`; AsyncStart alone does not dispatch commands. Configure logging before that entry point and put business dependency initialization in registered lifecycle Start hooks, so reading logs does not initialize business services.
+
+```go
+log.SetDefaultConfig(log.Config{File: "logs/server.log", SplitTag: "2006-01-02"})
+service.Start()
+```
+
+`./server log` defaults to `-tail 100 -f` and follows date splits. Explicit filenames default to all records; explicit -tail needs -f for following. Use `./server log -tail 100 path.gz`, `./server log -cat path.gz | grep pattern`, or `./server log -cat -json path.gz | jq .`. Head/tail/cat are exclusive. -json restores object JSONL; -raw restores array JSONL. `./server logv` formats stdin; compressed stdin requires -dict. File arguments locate the paired dictionary automatically.
+
+Default output is real-time block compression with a per-file .dict; retain, transfer and delete both files together. Generic gzip/zcat cannot restore records. Legacy plaintext remains readable; Config.NoCompress (log.noCompress) opts out of compression. Range selection belongs in our command before decoding; pipe decoded output into grep/awk. Tail skips old blocks; full-file grep decodes the full file. Buffered output is flushed on graceful shutdown and does not promise per-record persistence or zero loss on power failure.
+
+Keep full RequestLog in business services and CallLog for outbound Discover calls; use the injected request logger to preserve TraceID. Gateway compact proxy logging removes duplicate request summaries while static requests retain their own RequestLog. Failures include bounded, sanitized details. Leave CompactProxyLog false for ordinary business services and never log credentials or sensitive request bodies. Full examples and configuration: [中文](README.md#可执行文件内置日志命令v1554).
+
+
+### Release v1.5.54 — 2026-11-12
+
+Released GitHub dependencies; no local development replacements. Full tests and benchmarks validated with GOWORK=off.
