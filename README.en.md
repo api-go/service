@@ -142,3 +142,8 @@ Released GitHub dependencies; no local development replacements. Full tests and 
 
 
 Default human-readable log/logv output preserves ANSI colors; JSON/raw output remains structured. Existing archives retain field indices while matching fields use current presentation metadata.
+
+
+## v1.5.55 — 2026-11-13
+
+Human-readable output is always colored; -json emits ANSI-free JSONL for collection (-raw remains unformatted JSONL). `./server log -tail -f -json` means the latest 100 records followed by new records; use -tail 0 is unsupported. Compression applies only to configured file output, not console or other writers.

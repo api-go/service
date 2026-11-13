@@ -274,3 +274,8 @@ GOWORK=off；正式 GitHub 依赖，无本地 replace。完整 go test -v ./... 
 ## 2026-11-13 彩色日志验收
 
 DL 服务器固定 Go 镜像中 Gateway、Log 完整测试通过；旧归档命令输出含 ANSI 转义，管理入口 200，容器 healthy；用户验收通过。
+
+
+## v1.5.55
+
+GOWORK=off 正式依赖完整测试及基准通过，-tail -f -json 解析、取消和无 ANSI 输出验证通过。

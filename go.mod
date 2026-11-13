@@ -12,7 +12,7 @@ require (
 	github.com/api-go/http v1.5.18
 	github.com/api-go/id v1.5.10
 	github.com/api-go/jsmod v1.5.6
-	github.com/api-go/log v1.5.19
+	github.com/api-go/log v1.5.20
 	github.com/api-go/redis v1.5.24
 	github.com/api-go/safe v1.5.5
 	github.com/api-go/starter v1.5.16
