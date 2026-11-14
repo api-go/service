@@ -279,3 +279,29 @@ DL 服务器固定 Go 镜像中 Gateway、Log 完整测试通过；旧归档命�
 ## v1.5.55
 
 GOWORK=off 正式依赖完整测试及基准通过，-tail -f -json 解析、取消和无 ANSI 输出验证通过。
+
+## 依赖联动验证（2026-11-14，未发布）
+
+GOWORK=off，显式替换 safe/crypto；test: 0, bench: 0。0 表示通过；非零或超时结果待定位，不能视为验收通过。
+
+## 最终依赖图验证（2026-11-14，未发布）
+
+显式本地 replace 覆盖本轮待发布依赖链；GOWORK=off go mod tidy、go test -v ./...、go test -bench=. -benchtime=1x ./...。基准按固定 1 次采样，避免排除计时的昂贵准备阶段反复校准。本轮结果：[('tidy', '0'), ('test', '0'), ('bench', '0')]。0 为通过，其他结果待定位。
+
+固定一次采样的基准摘要（非稳定性能测量）：
+
+```text
+BenchmarkRouting-16              	       1	     12250 ns/op
+BenchmarkIngressDirectGate-16    	       1	     29334 ns/op	   11616 B/op	      52 allocs/op
+BenchmarkProxyWebSocket-16       	       1	    173375 ns/op	   5.91 MB/s	   46936 B/op	      24 allocs/op
+```
+
+## v1.5.56 正式发布验证（2026-11-14）
+
+GOWORK=off；移除全部 replace，使用已发布依赖。go mod tidy、go test -v ./...、go test -bench=. ./...、go mod verify 均通过。API 工具不可用，使用 go doc 与源码核对。
+
+```text
+BenchmarkRouting-16              	 7076947	       154.3 ns/op
+BenchmarkIngressDirectGate-16    	  374089	      3260 ns/op	    6896 B/op	      44 allocs/op
+BenchmarkProxyWebSocket-16       	   32676	     35318 ns/op	  28.99 MB/s	    4906 B/op	      19 allocs/op
+```

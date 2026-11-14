@@ -337,3 +337,7 @@ Default human-readable log/logv output preserves ANSI colors; JSON/raw output re
 ## v1.5.55 — 2026-11-13
 
 Human-readable output is always colored; -json emits ANSI-free JSONL for collection (-raw remains unformatted JSONL). `./server log -tail -f -json` means the latest 100 records followed by new records; use -tail 0 is unsupported. Compression applies only to configured file output, not console or other writers.
+
+v1.5.56: dependency alignment with safe v1.5.6 / crypto v1.5.11. Development uses explicit local replacements; remove before release. Public API unchanged.
+
+Release v1.5.56: verified with published dependencies and GOWORK=off; all temporary replacements have been removed. Earlier development-validation notes describe historical local checks.
